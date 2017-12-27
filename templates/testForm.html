@@ -122,7 +122,36 @@
         {% endif %}
     </div>
     
-    
+    <div class="multi-analysis">
+        {% if entity_profile%}
+        <script type="text/javascript" src="/static/d3.js"></script>
+        <script type="text/javascript" src="/static/product_profile.js"></script>
+        <script type="text/javascript">
+            var links_entity = new Array();
+            var links_entity_attr = new Array();
+            var nodes_entity = {};
+            var i=0;
+            {% for src,targ,level in entity_pair %}
+                links_entity[i]={source:"{{src}}",target:"{{targ}}",level:{{level}}};
+                nodes_entity["{{src}}"]||(nodes_entity["{{src}}"]={name:"{{src}}",level:{{level}}});
+                nodes_entity["{{targ}}"]||(nodes_entity["{{targ}}"]={name:"{{targ}}",level:{{level}}+1});
+                i=i+1;
+            {% endfor %}
+            {% for name,p,n,o in entity_profile %}
+                nodes_entity["{{name}}"]={name:"{{name}}",level:nodes_entity["{{name}}"].level,positive:{{p}},negative:{{n}},ordinary:{{o}}};
+            {% endfor %}
+            links_entity.forEach(function(link) {
+                link.source=nodes_entity[link.source];
+                link.target=nodes_entity[link.target];
+            });
+            i=0;
+            {% for src,targ, p,n,o in multi_analysis %}
+                links_entity_attr[i]={source:"{{src}}",target:"{{targ}}",level:nodes_entity["{{src}}"].level,positive:{{p}},negative:{{n}},ordinary:{{o}}};
+            {% endfor %}
+            product_profile(links_entity,links_entity_attr,nodes_entity,);
+        </script>
+        {% endif%}
+    </div>
     
     <div id="aspect_graph" >
     
