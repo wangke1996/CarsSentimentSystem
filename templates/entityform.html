@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{% block title %} Flasky {% endblock %}
+
+{% block content %}
+<div class='container'>
+	{% for message in get_flashed_messages() %}
+	<div class='alert alert-warning'>
+		<button type='button' class='close' data-dismiss='alert'> &times; </button>
+		{{ message }}
+	</div>
+	{% endfor %}
+	{% block page_content %}
+	<div class='page-header'>
+		<h1> 欢迎使用 Entity Linking 接口 </h1>
+	</div>
+	{{wtf.quick_form(form)}}
+	{% endblock %}
+	
+	{% if input_text %}
+	<div>
+		<h3> 输入的查询文本为： </h3>
+		<p> {{input_text}} </p>
+	</div>
+	
+	<h3> Entity Linking结果为： </h3>
+	{% if entity_list %}
+	{% for entity in entity_list %}
+	<div>
+	<h4> entity: {{entity_list.index(entity)+1}} </h4>
+		<p> Mention: {{entity['Mention']}} </p>
+		<p> Begin: {{entity['Begin']}} </p>
+		<p> End: {{entity['End']}} </p>
+		<p> EntityID: {{entity['EntityID']}} </p>
+		<p> ConceptTag: {{entity['ConceptTag']}} </p>
+		<p> ConfidenceScore: {{entity['ConfidenceScore']}} </p>
+		<p> PopularityScore: {{entity['PopularityScore']}} </p>
+	</div>
+	{% endfor %}
+	{% endif %}
+	{% endif %}
+</div>
+{% endblock %}
+
+
+
