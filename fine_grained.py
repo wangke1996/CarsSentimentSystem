@@ -1,6 +1,13 @@
+# coding=utf-8
+# encoding=utf8
+from __future__ import print_function  # python2 loading print
+
 import os
+
 os.environ['KERAS_BACKEND'] = 'theano'  # 换成TensorFlow backend的话，加载nn模型总报错，甚是诡异……
 import sys
+import imp
+imp.reload(sys)
 import re
 import copy
 import numpy as np
@@ -10,164 +17,244 @@ from more_itertools import unique_everseen
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import load_model
 from pyltp import Segmentor, Postagger, Parser
+# from utils.misc_utils import get_args_info
+
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
 
-_LTP_DATA_DIR = r'K:\program\Python36-32\Scripts\pyltp\ltp_data' if sys.platform == 'win32' else os.path.expanduser('~/program/Python36-32/Scripts/pyltp/ltp_data')
-#_LTP_DATA_DIR = r'd:\datasets\ltp_data' if sys.platform == 'win32' else os.path.expanduser('~/datasets/ltp_data')
+_LTP_DATA_DIR = r'./ltp_data'
+# _LTP_DATA_DIR = r'C:\Users\yuanz\datasets\ltp_data'
 _DEFAULT_ENTITY = 'DEFAULT_ENTITY'  # 用于加载sentiment lexicon，通用情感词的默认搭配填充
 # ltp对象，用于分词、POS、Parser
 _segmentor = Segmentor()
 _postagger = Postagger()
 _parser = Parser()
+
 # 根据EntityLink的返回结果，涉及到下列概念的entity不要
 STOP_CONCEPTS = {'字词', '语言', '音乐作品', '娱乐作品', '词语'}
+
 # 否定词前缀
 NEGATION_WORDS = {'不', '无', '没', '没有', '不是', '不大', '不太'}
+
 # 语气前缀词
 PREFIX_STOPWORDS = {'感觉', '觉得', '还', '就是', '还是', '真心'}
+
 # 语气后缀词
 SUFFIX_STOPWORDS = {'了', '哈', '喔', '啊', '哈', '撒', '吧', '啦', '拉', '阿', '的', '嗷'}
+
 # 情感强度前缀词
 INTENSITY_PREFIX_WORDS = {'好', '很', '都', '真', '太', '大', '超', '挺', '还', '还挺', '特', '特别', '非常', '灰常', '都很', '相当'}
+
 # 情感强度后缀词
 INTENSITY_SUFFIX_WORDS = {'至极', '极', '透'}
-# Entity黑名单，情感分析模块使用
-ENTITY_BLACKLIST = set(line.strip() for line in open('libs/entity_blacklist.txt', 'r', encoding='utf8'))
-# Entity白名单，情感分析模块使用
-ENTITY_WHITELIST = set(line.strip().split()[0] for line in open('libs/entity_whitelist.txt', 'r', encoding='utf8'))
-if len(ENTITY_BLACKLIST & ENTITY_WHITELIST) > 0:
-    print('conflict in entitylist:', file=sys.stderr)
-    print(ENTITY_BLACKLIST & ENTITY_WHITELIST, file=sys.stderr)
 
 
 def ltp_init():
     """初始化LTP工具"""
+    print('初始化LTP工具...')
     cws_model_path = os.path.join(_LTP_DATA_DIR, 'cws.model')
+    print(cws_model_path)
     _segmentor.load_with_lexicon(cws_model_path, 'libs/user_dict.txt')
     pos_model_path = os.path.join(_LTP_DATA_DIR, 'pos.model')
     _postagger.load(pos_model_path)
+    print(pos_model_path)
     par_model_path = os.path.join(_LTP_DATA_DIR, 'parser.model')
     _parser.load(par_model_path)
+    print(par_model_path)
 
 
 def ltp_release():
+    """释放LTP工具"""
     _segmentor.release()
     _postagger.release()
     _parser.release()
 
 
-def load_sentiment_lexicon(path='libs/sentiment_lexicon.txt'):
-    """加载情感词典文件"""
-    lexicon = dict()
-    with open(path, 'r', encoding='utf-8', errors='ignore') as fr:
-        for line in fr:
-            fields = line.strip().lower().split()
-            if len(fields) >= 2:
-                word, score, *aspects = fields
-                score = int(score)
-                if len(aspects) == 0:
-                    # 单独的情感词（非形如“价格-高”二元搭配），用_DEFAULT_ENTITY作为默认entity搭配
-                    lexicon.setdefault(word, dict()).setdefault(_DEFAULT_ENTITY, score)
-                    lexicon.setdefault('不' + word, dict()).setdefault(_DEFAULT_ENTITY, -score)
-                    for prefix in INTENSITY_PREFIX_WORDS:
-                        lexicon.setdefault(prefix + word, dict()).setdefault(_DEFAULT_ENTITY, score)
-                else:
-                    for aspect in aspects:
-                        ENTITY_WHITELIST.add(aspect)
-                        lexicon.setdefault(word, dict()).setdefault(aspect, score)
-                        lexicon.setdefault('不' + word, dict()).setdefault(aspect, -score)
-                        for prefix in INTENSITY_PREFIX_WORDS:
-                            lexicon.setdefault(prefix + word, dict()).setdefault(aspect, score)
-    return lexicon
+UNIQUE = 'uni'
 
 
-def load_aspects(path='libs/aspects.txt'):
-    """加载预定义的aspect分类设置
+class entity(object):
+    # 实体类
+    def __init__(self, name):
+        # 分别对应实体名，父级实体，子级实体，实体属性，好评数量，差评数量
+        self.name = name
+        self.father = None
+        self.sons = set()
+        self.attributes = set()
+        self.self_good_num = 0
+        self.self_bad_num = 0
+        self.self_normal_num = 0
+        self.self_notsure_num = 0
+        self.good_num = 0
+        self.bad_num = 0
+        self.normal_num = 0
+        self.notsure_num = 0
 
-    aspect.txt文件格式：
-        - [xx]代表一级类别
-        - 其余每行代表一个附属的二级类别，每行第一个词语是二级类别的名称，后面的所有词语代表这个类别的关键词（用于类别匹配）
+    def add_son(self, new_son):
+        # 加入子级实体
+        self.sons.add(new_son)
+
+    def add_attribute(self, new_attribute):
+        # 加入实体属性
+        self.attributes.add(new_attribute)
+
+    def account(self):
+        # 计算各实体的评论数量
+
+        self.self_good_num = 0
+        self.self_bad_num = 0
+        self.self_normal_num = 0
+        self.self_notsure_num = 0
+
+        for x in self.attributes:
+            self.self_good_num = self.self_good_num + x.good_num
+            self.self_bad_num = self.self_bad_num + x.bad_num
+            self.self_normal_num = self.self_normal_num + x.normal_num
+            self.self_notsure_num = self.self_notsure_num + x.notsure_num
+
+        self.good_num = self.self_good_num
+        self.bad_num = self.self_bad_num
+        self.normal_num = self.self_normal_num
+        self.notsure_num = self.self_notsure_num
+
+        for x in self.sons:
+            x.account()
+            self.good_num = self.good_num + x.good_num
+            self.bad_num = self.bad_num + x.bad_num
+            self.normal_num = self.normal_num + x.normal_num
+            self.notsure_num = self.notsure_num + x.notsure_num
+
+
+class attribute(object):
+    # 属性类
+    def __init__(self, name, father):
+        # 分别对应属性名，实体，好评数，差评数
+        self.name = name
+        self.father = father
+        self.good_num = 0
+        self.bad_num = 0
+        self.normal_num = 0
+        self.notsure_num = 0
+        self.good_comments = set()
+        self.bad_comments = set()
+        self.normal_comments = set()
+
+
+def load_enititiy(whole_part_path, entitiy_synonym_path):
+    """加载预定义的实体设置
+    whole-part.txt文件格式：
+        - 每行第一个词语为父级实体
+        - tab之后为若干用空格隔开的子级实体
+    entitiy-synonym.txt文件格式：
+        - 每行第一个词语为实体名
+        - tab之后为若干用空格隔开的同义词
     """
-    term2aspect = dict()
-    lv1_aspects = set()
-    lv2_aspects = set()
-    with open(path, 'r', encoding='utf8') as fr:
+    print("加载预定义的entity设置...")
+    # 加载实体间关系
+    entities = []
+    with open(whole_part_path, 'r',encoding='utf8') as fr:
+        for line in fr:
+            words = line.split('\t')
+            entities = entities + [entity(name=words[0])]
+
+    num = 0
+    with open(whole_part_path, 'r',encoding='utf8') as fr:
+        for line in fr:
+            line = line.strip('\n')
+            line = line.strip('\t')
+            line = line.split('\t')
+            if len(line) != 1:
+                line1 = line[1]
+                words = line1.split(' ')
+                for new_son in words:
+                    for i in range(0, len(entities) - 1):
+                        if entities[i].name == new_son:
+                            entities[num].add_son(entities[i])
+                            entities[i].father = entities[num]
+                            # print('father: ',entities[num].name,'\tson: ',entities[i].name,)
+            num = num + 1
+
+    # 加载实体与同义词关系
+    term2entity = dict()
+    with open(entitiy_synonym_path, 'r',encoding='utf8') as fr:
         for line in fr:
             line = line.strip().lower()
-            if len(line) > 0:
-                if line.startswith('['):  # lv1 aspect
-                    lv1_aspect = line.replace('[', '').replace(']', '')
-                    lv1_aspects.add(lv1_aspect)
-                    term2aspect[lv1_aspect] = lv1_aspect
-                    ENTITY_WHITELIST.add(lv1_aspect)
-                else:
-                    terms = line.split()
-                    lv2_aspect = terms[0]
-                    if lv2_aspect == '整体描述':
-                        for term in terms[1:]:
-                            term2aspect[term] = lv1_aspect
-                            ENTITY_WHITELIST.add(term)
-                    else:
-                        lv2_aspects.add(lv2_aspect)
-                        for term in terms:
-                            term2aspect[term] = lv1_aspect + '-' + lv2_aspect
-                            ENTITY_WHITELIST.add(term)
-    # print('aspects loaded:')
-    # print(' - terms:', len(term2aspect))
-    # print(' - lv1 aspects:', len(lv1_aspects))
-    # print(' - lv2 aspects:', len(lv2_aspects))
-    return term2aspect, lv1_aspects, lv2_aspects
+            line = line.strip('\n')
+            line = line.strip('\t')
+            line = line.split('\t')
+            name = line[0]
+            words = line[1].split(' ')
+            for x in entities:
+                if x.name == name:
+                    for word in words:
+                        term2entity[word] = x.name
+                        # print('entity: ',x.name,'\tword: ',word)
+    print("entity设置加载成功")
+    return entities, term2entity
 
 
-def load_va2aspect(path='libs/va2aspect.txt'):
-    """加载va2aspect文件
-    该文件涵义：检测到特定的描述，如“高性价比”，则将其映射到“价格”，并为正面。
-    这部分词语主要是形容词、动词，而aspects.txt里的关键词主要是名词、实体类词语。
+def load_attribute(attribute_description_path, attribute_synonym_path, entity_attribute_path, entities):
+    """加载预定义的属性设置
+    attribute-descrpition.txt文件格式：
+        - 每行第一个词语为属性名
+        - tab之后为若干用空格隔开的属性形容词，每三行描述一个属性，分别代表好，中，差
     """
-    va2aspect = dict()
-    with open(path, 'r', encoding='utf8') as fr:
+    print("加载预定义的attribute设置...")
+    # 加载形容词属性之间关系
+    va2attributes = dict()
+    with open(attribute_description_path, 'r',encoding='utf8') as fr:
+        num = 0
         for line in fr:
-            terms = line.strip().lower().split()
-            if len(terms) >= 3:
-                va2aspect[terms[0]] = (terms[1], int(terms[2]))
-                for word in NEGATION_WORDS:
-                    va2aspect[word + terms[0]] = (terms[1], -int(terms[2]))
-                for word in INTENSITY_PREFIX_WORDS:
-                    va2aspect[word + terms[0]] = (terms[1], int(terms[2]))
-                for word in INTENSITY_SUFFIX_WORDS:
-                    va2aspect[terms[0] + word] = (terms[1], int(terms[2]))
-                ENTITY_WHITELIST.add(terms[0])
-    # print('va2aspect loaded:')
-    # print(' - v/a:', len(va2aspect))
-    return va2aspect
+            line = line.strip().lower()
+            line = line.strip('\n')
+            line = line.strip('\t')
+            line = line.split('\t')
+            name = line[0]
+            if len(line) > 1:
+                words = line[1].split(' ')
+                for word in words:
+                    va2attributes[name, word] = 1 - (num % 3)
+            num = num + 1
 
-
-def load_vamatch(path='libs/va_match.txt'):
-    """加载va_match文件
-    该文件涵义：整句如果匹配上这些预定义的语句，则直接分类。
-    这部分的表述通常过于简单，无法捕捉到明显的aspect，但如果放在va2aspect里又因为很容易部分匹配导致误判，因此直接整句匹配（实际上前后补充了一些语气的前缀、后缀词）
-    """
-    va_match = dict()
-    with open(path, 'r', encoding='utf8') as fr:
+    # 加载属性与同义词关系
+    term2attributes = dict()
+    with open(attribute_synonym_path, 'r',encoding='utf8') as fr:
         for line in fr:
-            terms = line.strip().lower().split()
-            if len(terms) >= 3:
-                va_match[terms[0]] = (terms[1], int(terms[2]))
-                for word in NEGATION_WORDS:
-                    va_match[word + terms[0]] = (terms[1], -int(terms[2]))
-                for word in INTENSITY_PREFIX_WORDS:
-                    va_match[word + terms[0]] = (terms[1], int(terms[2]))
-                for word in INTENSITY_SUFFIX_WORDS:
-                    va_match[terms[0] + word] = (terms[1], int(terms[2]))
-    # print('va_match loaded:')
-    # print(' - v/a:', len(va_match))
-    return va_match
+            line = line.strip().lower()
+            line = line.strip('\n')
+            line = line.strip('\t')
+            line = line.split('\t')
+            name = line[0]
+            words = line[1].split(' ')
+            for word in words:
+                term2attributes[word] = name
+                # print('attribute: ',name,'\tword: ',word)
+
+    # 加载属性与实体间关系
+    with open(entity_attribute_path, 'r',encoding='utf8') as fr:
+        for line in fr:
+            line = line.strip().lower()
+            line = line.strip('\n')
+            line = line.strip('\t')
+            line = line.split('\t')
+            if len(line)<2:
+                continue
+            name = line[0]
+            words = line[1].split(' ')
+            for x in entities:
+                if x.name == name:
+                    for word in words:
+                        new_attribute = attribute(name=word, father=x)
+                        x.add_attribute(new_attribute=new_attribute)
+                        # print('entity: ',x.name,'\tattribute: ',word)
+    print("attribute设置加载成功")
+    return va2attributes, term2attributes, entities
 
 
 def clean_text(text):
+    """文本去噪"""
     text = text.lower()
     text = text.replace(r'\n', ' ')
     text = text.replace(r'&hellip;', ' ')
@@ -200,269 +287,375 @@ def _domain_specific_clean(text):
 
 def split_sentences(text):
     """文本拆分为单句。后续分析时按照单句处理"""
-    sents = re.split(r'[,，。！!？?~～：:；;…=\s\n]', text)
+    sents = re.split(u'[，。！!？?~～：:；;…=\s\n]',text)
     sents = [sent.strip() for sent in sents if len(sent.strip()) > 0]
     return sents
 
 
-UNIQUE = 'unique'  # grammar_analysis使用
+def init(use_nn=True):
+    """初始化语料库等资源"""
+    print('正在进行初始化设置...')
+    ltp_init()
+    entities, term2entity = load_enititiy(whole_part_path='./KnowledgeBase/whole-part.txt',
+                                          entitiy_synonym_path='./KnowledgeBase/entity-synonym.txt')
+    va2attributes, term2attributes, entities = load_attribute(
+        attribute_description_path='./KnowledgeBase/attribute-description.txt',
+        attribute_synonym_path='./KnowledgeBase/attribute-synonym.txt',
+        entity_attribute_path='./KnowledgeBase/entity-attribute.txt',
+        entities=entities)
+    print('loading nn model')
+    # model1 = load_model('libs/aspect-model.h5') if use_nn else None
+    # model2 = load_model('libs/sentiment-model.h5') if use_nn else None
+    # nn_kwargs1 = pickle.load(open('libs/aspect-nnargs.pkl', 'rb')) if use_nn else None
+    # nn_kwargs2 = pickle.load(open('libs/sentiment-nnargs.pkl', 'rb')) if use_nn else None
+    print('初始化设置成功！\n')
+    return {
+        'entities': entities,
+        'term2entity': term2entity,
+        'va2attributes': va2attributes,
+        'term2attributes': term2attributes,
+        #   'model1': model1,
+        #   'nn_kwargs1': nn_kwargs1,
+        #   'model2': model2,
+        #   'nn_kwargs2': nn_kwargs2
+    }
+
+
 sorted_unique_words = None
+sorted_unique_words_entities = None
+sorted_unique_words_attributes = None
+sorted_unique_words_va = None
 
 
-def grammar_analysis(_text, _entities, _lexicon):
-    # entity&lexicon替换为id tag，避免分词时被分开
+def grammar_analysis(text, entities, term2entity, va2attributes, term2attributes):
+    # entity&attribute&va替换为id tag，避免分词时被分开
     id2word = dict()
     replace_logs = []
     global sorted_unique_words
+    global sorted_unique_words_entities
+    global sorted_unique_words_attributes
+    global sorted_unique_words_va
+
     if not sorted_unique_words:
-        sorted_unique_words = list(sorted(chain(_entities, _lexicon.keys()), key=len, reverse=True))
+        sorted_unique_words = set()
+        sorted_unique_words_entities = set()
+        sorted_unique_words_attributes = set()
+        sorted_unique_words_va = set()
+        # 将实体添加入字典
+        for x in term2entity.keys():
+            sorted_unique_words_entities.add(x)
+        # 将属性添加入字典
+        for x in term2attributes.keys():
+            sorted_unique_words_attributes.add(x)
+        # 将形容词添加入字典
+        for x in va2attributes.keys():
+            name, word = x
+            sorted_unique_words_va.add(word)
+        sorted_unique_words.update(sorted_unique_words_entities)
+        sorted_unique_words.update(sorted_unique_words_attributes)
+        sorted_unique_words.update(sorted_unique_words_va)
+
     for idx, word in enumerate(sorted_unique_words):
-        if word in _text:
-            id2word[UNIQUE + str(idx)] = word
+        if word in text:
+            id2word[UNIQUE + '%d' % idx] = word
             if word not in '-'.join(replace_logs):
-                _text = _text.replace(word, ' ' + UNIQUE + str(idx) + ' ')  # 首尾加入空格，防止连续在一起出现的实体无法识别
-                replace_logs.append(str(idx))
-    words = list(_segmentor.segment(_text))
+                text = text.replace(word, ' ' + UNIQUE + '%d' % idx + ' ')  # 首尾加入空格，防止连续在一起出现的实体无法识别
+                replace_logs.append('%d' % idx)
+
+    # print(text)
+    words = list(_segmentor.segment(text.encode('utf-8')))
+    # for x in words:
+    #     print(x)
     # 将被替换的entity&lexicon词语恢复
     unique_indices = set()
     for idx, word in enumerate(words):
         if word in id2word:
             words[idx] = id2word[word]
             unique_indices.add(idx)
+
     # postags
     postags = list(_postagger.postag(words))
+
     # 对words/postags的结果进行修正
     for idx, (word, postag) in enumerate(zip(words, postags)):
-        if idx < len(postags)-1:
-            if word == '好' and postag == 'a' and postags[idx+1] == 'a':
+        if idx < len(postags) - 1:
+            if word == '好' and postag == 'a' and postags[idx + 1] == 'a':
                 postags[idx] = 'd'
         if idx in unique_indices:
-            if words[idx] in _entities:
+            if words[idx] in sorted_unique_words_entities:
                 postags[idx] = 'n'
-            if words[idx] in _lexicon:
+            if words[idx] in sorted_unique_words_attributes:
+                postags[idx] = 'n'
+            if words[idx] in sorted_unique_words_va:
                 postags[idx] = 'v'
+
     # parser
     arcs = _parser.parse(words, postags)
+
+    '''
+    for i in range(0,len(arcs)):
+        print(words[i], '\tPostag: ', postags[i], '\tParser: ', arcs[i].head, '\t', arcs[i].relation)
+    print()
+    '''
     return words, postags, arcs
 
 
-def sentiment_analysis(text, words, postags, arcs, lexicon,
+def sentiment_analysis(text, words, postags, arcs,
+                       entities, term2entity, va2attributes, term2attributes,result_list,
                        debug=False, file=sys.stdout):
     """情感分析模块
     算法思路：根据Dependency Parser的结果，结合一系列预定义的语法规则，抽取情感搭配
     """
+    print()
+    print(text)
     words.append('HED')
     parcs = [(arc.relation, (arc.head - 1, words[arc.head - 1]), (idx, words[idx])) for idx, arc in enumerate(arcs)]
-    if debug:
-        print('text:', text, file=file)
-        print('words:', words, file=file)
-        print('tags :', postags, file=file)
-        print('arcs :', file=file)
+
+    # for x in parcs:
+    #	print(x[0],'\t',x[1][0],'\t',x[1][1],'\t',x[2][0],'\t',x[2][1])
+
+    def _get_entity(_name):
+        # 由entity名字获得相应entity
+        for x in entities:
+            if x.name == _name:
+                return x
+        return None
+
+    def _get_attribute(_entity, _name):
+        # 由entity及attribute名字获得相应attribute
+        for x in _entity.attributes:
+            if x.name == _name:
+                return x
+        return None
+
+    def _get_score(_attribute, _va):
+        # 由attibute名字及va获得相应score
+        return va2attributes.setdefault((_attribute, _va), None)
+
+    def _get_this_entity(wordnum):
+        have_father = False
+        fathernum = None
+        fathername = None
         for parc in parcs:
-            print(' ', parc[0], parc[1], '->', parc[2], end='', file=file)
-        print(file=file)
-
-    dualistics = dict()  # 保存二元关系，即entity-sentiment pair（只保存index）
-    entity2score = dict()
-    this_entities = set()
-    this_lexicon = set()
-    for idx, word in enumerate(words[:-1]):
-        if word in lexicon:
-            this_lexicon.add(idx)
-
-    def _is_entity(_parc, _idx):
-        if _parc[_idx][1] in ENTITY_WHITELIST:
-            return True
-        if _parc[_idx][1] in ENTITY_BLACKLIST:
-            return False
-        if postags[_parc[_idx][0]].startswith('n') and (not postags[_parc[_idx][0]].startswith(('nt', 'nd'))):
-            return True
-        return False
-
-    def _in_lexicon(senti, entity):
-        if senti in lexicon:
-            if lexicon[senti].keys() == {_DEFAULT_ENTITY} or entity == _DEFAULT_ENTITY:
-                return True
+            if parc[0] == 'ATT':
+                if parc[1][0] == wordnum:
+                    have_father = True
+                    fathernum = parc[2][0]
+                    fathername = parc[2][1]
+                    break
+        if have_father:
+            if fathername in sorted_unique_words_entities:
+                return fathername, fathernum
             else:
-                return entity in lexicon[senti].keys()
+                return _get_this_entity(fathernum)
         else:
-            return False
-
-    def _get_score(senti, entity):
-        if senti in lexicon:
-            if lexicon[senti].keys() == {_DEFAULT_ENTITY} or entity == _DEFAULT_ENTITY:
-                return lexicon[senti][_DEFAULT_ENTITY]
-            if entity in lexicon[senti]:
-                return lexicon[senti][entity]
-        return 0
+            return None, None
 
     # pre-process for neg and coo
     negation_logs = dict()  # 记录情感否定信息
-    coo_entities = dict()
     for parc in parcs:
         if parc[0] == 'ADV' and parc[2][1] in NEGATION_WORDS:
             negation_logs[parc[1][0]] = parc[2][1] + parc[1][1]
         if parc[0] == 'VOB' and parc[1][1] in NEGATION_WORDS:
             negation_logs[parc[2][0]] = parc[1][1] + parc[2][1]
-        if parc[0] == 'COO' and _is_entity(parc, 1) and _is_entity(parc, 2):
-            coo_entities.setdefault(parc[1][0], []).append(parc[2][0])
+
     # sentiment pair extraction (entity -> opinion)
+    got_score = False
+
     for parc in parcs:
+        this_entity_name = None
+        this_entity_num = None
+        this_attribute_name = None
+        this_attribute_num = None
+        this_va = None
+        this_va_num = None
+
         # 主谓/动宾/前宾
-        if (parc[0] == 'VOB' and _in_lexicon(parc[1][1], parc[2][1]) and _is_entity(parc, 2)) or \
-                (parc[0] == 'SBV' and _in_lexicon(parc[1][1], parc[2][1]) and _is_entity(parc, 2)) or \
-                (parc[0] == 'FOB' and _in_lexicon(parc[1][1], parc[2][1]) and _is_entity(parc, 2)) or \
-                (parc[0] == 'ADV' and _in_lexicon(parc[1][1], parc[2][1]) and _is_entity(parc, 2)):
-            score = _get_score(parc[1][1], parc[2][1]) * (-1 if parc[1][0] in negation_logs else 1)
-            entity2score[parc[2][0]] = score
-            dualistics[parc[2][0]] = parc[1][0]
-            this_entities.add(parc[2][0])
+        if (parc[0] == 'VOB' or \
+                        parc[0] == 'SBV' or \
+                        parc[0] == 'FOB' or \
+                        parc[0] == 'ADV') and \
+                        parc[1][1] in sorted_unique_words_va:
+
+            if parc[2][1] in sorted_unique_words_attributes:
+                this_attribute_name = parc[2][1]
+                this_attribute_num = parc[2][0]
+                this_va = parc[1][1]
+                this_va_num = parc[1][0]
+                # 在句子里根据attribute找entity
+                this_entity_name, this_entity_num = _get_this_entity(this_attribute_num)
+
+                # if (this_entity_name is None):
+                #     print('Not found entity! The attribute is ', this_attribute_name, '.\tThe va is ', this_va)
+                got_score = True
+
+            elif parc[2][1] in sorted_unique_words_entities:
+                this_entity_name = parc[2][1]
+                this_entity_num = parc[2][0]
+                this_va = parc[1][1]
+                this_va_num = parc[1][0]
+                this_attribute_name = '整体'
+                got_score = True
         # 修饰关系(定中)
-        if (parc[0] == 'ATT' and _is_entity(parc, 1) and _in_lexicon(parc[2][1], parc[1][1])) or \
-                (parc[0] == 'CMP' and _is_entity(parc, 1) and _in_lexicon(parc[2][1], parc[1][1])):
-            score = _get_score(parc[2][1], parc[1][1]) * (-1 if parc[2][0] in negation_logs else 1)
-            entity2score[parc[1][0]] = score
-            dualistics[parc[1][0]] = parc[2][0]
-            this_entities.add(parc[1][0])
-        if parc[0] == 'ATT' and _in_lexicon(parc[1][1], parc[2][1]) and _is_entity(parc, 2):  # ?
-            score = _get_score(parc[1][1], parc[2][1]) * (-1 if parc[1][0] in negation_logs else 1)
-            entity2score[parc[2][0]] = score
-            dualistics[parc[2][0]] = parc[1][0]
-            this_entities.add(parc[2][0])
-        # 复合动宾关系
-        if parc[0] == 'VOB' and _in_lexicon(parc[1][1], _DEFAULT_ENTITY) and postags[parc[2][0]] == 'v':  # 复合VOB
-            for parc_ in parcs:
-                if parc_[0] == 'VOB' and parc_[1][0] == parc[2][0] and _is_entity(parc_, 2) and _in_lexicon(parc[1][1], parc_[2][1]):
-                    score = _get_score(parc[1][1], parc_[2][1]) * (-1 if parc[1][0] in negation_logs else 1)
-                    entity2score[parc_[2][0]] = score
-                    dualistics[parc_[2][0]] = parc[1][0]
-                    this_entities.add(parc_[2][0])
-        if parc[0] == 'VOB' and _in_lexicon(parc[2][1], _DEFAULT_ENTITY) and postags[parc[2][0]] != 'v' and parc[1][1] == '是':
-            for parc_ in parcs:
-                if parc_[0] == 'SBV' and parc_[1][0] == parc[1][0] and _is_entity(parc_, 2) and _in_lexicon(parc[2][1], parc_[2][1]):
-                    score = _get_score(parc[2][1], parc_[2][1]) * (-1 if parc[2][0] in negation_logs else 1)
-                    entity2score[parc_[2][0]] = score
-                    dualistics[parc_[2][0]] = parc[2][0]
-                    this_entities.add(parc_[2][0])
-        if parc[0] == 'VOB' and _in_lexicon(parc[2][1], _DEFAULT_ENTITY) and postags[parc[1][0]] == 'v':  # SBV-VOB
-            for parc_ in parcs:
-                if parc_[0] == 'SBV' and parc_[1][0] == parc[1][0] and _is_entity(parc_, 2) and _in_lexicon(parc[2][1], parc_[2][1]):
-                    score = _get_score(parc[2][1], parc_[2][1]) * (-1 if parc[2][0] in negation_logs else 1)
-                    entity2score[parc_[2][0]] = score
-                    dualistics[parc_[2][0]] = parc[2][0]
-                    this_entities.add(parc_[2][0])
-    # process coo-appearing entities
-    dual_items = copy.deepcopy(dualistics).items()
-    for entity_idx, senti_idx in dual_items:
-        if entity_idx in coo_entities:
-            for coo_index in coo_entities[entity_idx]:
-                dualistics[coo_index] = dualistics.get(coo_index, dualistics[entity_idx])
-    e2s_items = copy.deepcopy(entity2score).items()
-    for entity_idx, senti_score in e2s_items:
-        if entity_idx in coo_entities:
-            for coo_index in coo_entities[entity_idx]:
-                entity2score[coo_index] = entity2score.get(coo_index, entity2score[entity_idx])
-    if debug:
-        print(' - this_entities:', ' / '.join(words[idx] for idx in this_entities), file=file)
-        print(' - this_lexicon:', ' / '.join(words[idx] for idx in this_lexicon), file=file)
-        print(' - dualistics:', ', '.join(
-            '(%d/%s: %d/%s)' % (entity_idx, words[entity_idx], senti_idx, words[senti_idx]) for entity_idx, senti_idx in
-            dualistics.items()), file=file)
-        print(' - sentiment_score:', ', '.join(
-            '(%d/%s: %d)' % (entity_idx, words[entity_idx], senti_score) for entity_idx, senti_score in
-            entity2score.items()), file=file)
-    # prepare results
-    sentiments_list = []
-    for entity_idx, senti_idx in dualistics.items():
-        entity = words[entity_idx]
-        senti_word = negation_logs.get(senti_idx, words[senti_idx])
-        senti_score = entity2score.get(entity_idx, 0)
-        senti_str = '正面' if senti_score > 0 else '负面'
-        sentiments_list.append((entity, senti_word, senti_str))
+        if (parc[0] == 'ATT' or \
+                        parc[0] == 'CMP') and \
+                        parc[2][1] in sorted_unique_words_va:
+            if parc[1][1] in sorted_unique_words_attributes:
+                this_attribute_name = parc[1][1]
+                this_attribute_num = parc[1][0]
+                this_va = parc[2][1]
+                this_va_num = parc[2][0]
+                # 在句子里根据attribute找entity
+                this_entity_name, this_entity_num = _get_this_entity(this_attribute_num)
+                # if (this_entity_name is None):
+                #     print('Not found entity! The attribute is ', this_attribute_name, '.\tThe va is ', this_va)
+                got_score = True
+
+            elif parc[1][1] in sorted_unique_words_entities:
+                this_entity_name = parc[1][1]
+                this_entity_num = parc[1][0]
+                this_va = parc[2][1]
+                this_va_num = parc[2][0]
+                this_attribute_name = '整体'
+                got_score = True
+
+        if parc[0] == 'ATT' and \
+                        parc[1][1] in sorted_unique_words_va:
+            if parc[2][1] in sorted_unique_words_attributes:
+                this_attribute_name = parc[2][1]
+                this_attribute_num = parc[2][0]
+                this_va = parc[1][1]
+                this_va_num = parc[1][0]
+                # 在句子里根据attribute找entity
+                this_entity_name, this_entity_num = _get_this_entity(this_attribute_num)
+                # if this_entity_name is None:
+                #     print('Not found entity! The attribute is ', this_attribute_name, '.\tThe va is ', this_va)
+                got_score = True
+
+            elif parc[2][1] in sorted_unique_words_entities:
+                this_entity_name = parc[2][1]
+                this_entity_num = parc[2][0]
+                this_va = parc[1][1]
+                this_va_num = parc[1][0]
+                this_attribute_name = None
+                got_score = True
+
+        if got_score:
+            # 由已获得的entity attribute va更新entity树
+            "获得原本entity/attribute的name"
+            if this_entity_name != None:
+                this_entity_name = term2entity[this_entity_name]
+            if this_attribute_name != None:
+                this_attribute_name = term2attributes[this_attribute_name]
+
+            "根据attribute推测entity"
+            if this_entity_name is None:
+                got_entity_name = False
+                for x in entities[0].attributes:
+                    if x.name == this_attribute_name:
+                        this_entity_name = entities[0].name
+                        this_entity = entities[0]
+                        got_entity_name = True
+                if got_entity_name == False:
+                    unique_num = 0
+                    for x in entities:
+                        for y in x.attributes:
+                            if y.name == this_attribute_name:
+                                this_entity_name = x.name
+                                unique_num = unique_num + 1
+                                got_entity_name = True
+                    # 仅有1entity有此attribute则将其视为当attributee
+                    # if (unique_num > 1):
+                    #     this_entity_name = None
+                    #     got_entity_name = False
+                # if got_entity_name == True:
+                #     print("got entity name:", this_entity_name)
+
+            "根据entity及va推测attribute"
+            # print(this_entity_name)
+            if this_attribute_name is None:
+                got_attribute_name = False
+                if _get_score("整体", this_va) != None:
+                    this_attribute_name = "整体"
+                    got_attribute_name = True
+                else:
+                    unique_num = 0
+                    this_entity = _get_entity(this_entity_name)
+                    for x in this_entity.attributes:
+                        if _get_score(x.name, this_va) != None:
+                            this_attribute_name = x.name
+                            unique_num = unique_num + 1
+                            got_attribute_name = True
+                    # if (unique_num > 1):
+                        # this_attribute_name = None
+                        # got_attribute_name = False
+                        # got_attribute_name = True
+                # if got_attribute_name == True:
+                #     print("got attribute name:", this_attribute_name)
+            "根据eneity，attibute获得score"
+            this_entity = _get_entity(this_entity_name)
+            this_attribute = _get_attribute(this_entity, this_attribute_name)
+
+            score = _get_score(this_attribute_name, this_va)
+            "TBD 有entity or attribute 但va不匹配"
+            # 否定score取反
+            if score != None:
+                score = score * (-1 if this_va_num in negation_logs else 1)
+            try:
+                print('Get entity ', this_entity.name, '\tattribute ', this_attribute.name, '\tva ', this_va, '\tscore ',
+                  score)
+            except Exception:
+                pass
+            result_list.append([this_entity.name,this_attribute.name,this_va,score,text])
+
+
+            # 更新entity树
+            if score == 1:
+                this_attribute.good_comments.add(this_va)
+                this_attribute.good_num = this_attribute.good_num + 1
+            elif score == -1:
+                this_attribute.bad_comments.add(this_va)
+                this_attribute.bad_num = this_attribute.bad_num + 1
+            elif score == 0:
+                this_attribute.normal_comments.add(this_va)
+                this_attribute.normal_num = this_attribute.normal_num + 1
+            else:
+                this_attribute.notsure_num = this_attribute.notsure_num + 1
+        got_score = False
     words.remove('HED')  # don't forget this!
-    return sentiments_list, dualistics
+    return entities
 
 
-def detect_aspects(words, aspects_info, va2aspect, dualistics,
-                   debug=False, file=sys.stdout):
-    """根据aspect & va2aspect等资源，匹配式监测可能存在的aspect信息
-    由于va2aspect同时附带情感信息，如果基于va2aspect匹配出aspect，会同时输出情感搭配；
-    输入参数含有情感分析模块返回的dualistics，主要是用于过滤掉已经被情感分析模块得到的情感搭配（这里相当于只是补漏）
-    """
-    term2aspect, lv1_aspects, lv2_aspects = aspects_info
-    aspects = []
-    potential_sentiments = []
-    for word_idx, word in enumerate(words):
-        if word in term2aspect:
-            aspects.append(word)
-        else:
-            if word in va2aspect and word_idx not in dualistics.values():
-                aspect = va2aspect[word][0]
-                aspects.append(aspect)
-                # check negations
-                reverse = False
-                for idx in (word_idx - 1, word_idx - 2):
-                    if idx >= 0 and words[idx] in NEGATION_WORDS:
-                        reverse = True
-                        break
-                # sentiment info
-                senti_score = (-1 if reverse else 1) * va2aspect[word][1]
-                senti_str = '正面' if senti_score > 0 else '负面'
-                potential_sentiments.append((aspect, word, senti_str))
-    if debug:
-        print(' - aspects:', aspects, file=file)
-        print(' - va-senti:', potential_sentiments, file=file)
-    return aspects, potential_sentiments
-
-
-def predict_text(words, model, nn_kwargs):
-    """利用训练好的神经网络模型，对Sentiment/Aspect分类"""
-    maxlen = nn_kwargs['maxlen']
-    word2index = nn_kwargs['word2index']
-    index2label = nn_kwargs['index2label']
-    # data encode
-    seqs = [word2index.get(word, 1) for word in words]
-    seqs = pad_sequences([seqs], maxlen=maxlen, padding='post', truncating='post')
-    # predict
-    preds = model.predict(seqs)
-    pred = np.argmax(preds[0], axis=-1)
-    label = index2label[pred]
-    return label
-
-
-def refine_sentiments(sentiments, term2aspect):
-    """后处理已经得到的aspect-sentiment结果
-    后处理内容：
-        - 有更具体的大类的话，去掉通用的类别（比如“Surface的外观”，匹配外观而不匹配Surface）
-        - 对某个大类，如果有更小的子类匹配上，删去这个大类的通用描述类别
-    """
-    # sentiment: (entity, opinion, sentiment)
-    if len(sentiments) <= 1:
-        return sentiments
-    # delete general aspect (surface) if more specific aspects exist
-    has_specific = False
-    for sentiment in sentiments:
-        if not term2aspect.get(sentiment[0], 'surface').split('-')[0] == 'surface':
-            has_specific = True
-            break
-    if has_specific:
-        sentiments = [sentiment for sentiment in sentiments if
-                      term2aspect.get(sentiment[0], 'surface').split('-')[0] != 'surface']
-    # delete general if specific aspects exist (within certain aspect class)
-    specific_aspects = set()
-    for sentiment in sentiments:
-        aspect = term2aspect.get(sentiment[0], 'null')
-        if '-' in aspect:
-            specific_aspects.add(aspect.split('-')[0])  # log lv1 aspect name
-    if specific_aspects:
-        sentiments = [sentiment for sentiment in sentiments if
-                      term2aspect.get(sentiment[0], 'null') not in specific_aspects]  # remove aspect with lv1 only
+def entities2sentiments_single(entities):
+    sentiments = []
+    for enti in entities:
+        for atri in enti.attributes:
+            if len(atri.good_comments) != 0:
+                for comment in atri.good_comments:
+                    sentiments.append([enti.name, atri.name, comment, 1])
+            if len(atri.bad_comments) != 0:
+                for comment in atri.bad_comments:
+                    sentiments.append([enti.name, atri.name, comment, -1])
+            if len(atri.normal_comments) != 0:
+                for comment in atri.normal_comments:
+                    sentiments.append([enti.name, atri.name, comment, 0])
     return sentiments
 
 
-def analysis_comment(text, entities, lexicon, aspects_info, va2aspect, va_match,
-                     model1, nn_kwargs1, model2, nn_kwargs2,
-                     debug=False, file=sys.stdout, api_debug=False, use_nn=True):
+def entities2sentiments_group(entities):
+    sentiments = []
+    for enti in entities:
+        for atri in enti.attributes:
+            if len(atri.good_comments) or \
+                    len(atri.bad_comments) or \
+                            len(atri.normal_comments) != 0:
+                sentiments.append(
+                    [enti.name, atri.name, len(atri.good_comments), len(atri.bad_comments), len(atri.normal_comments)]);
+    return sentiments
+
+
+def analysis_comment(text, init_data,
+                     debug=False, file=sys.stdout, apiapi_debug=False, use_nn=True):
     """处理单条评论的api接口
     处理流程：
         - 预处理
@@ -473,132 +666,35 @@ def analysis_comment(text, entities, lexicon, aspects_info, va2aspect, va_match,
             - 结果后处理
         - 汇总得到整个评论的结果
     """
-    term2aspect, lv1_aspects, lv2_aspects = aspects_info
+    print('文本内容：\t', text, '\n')
 
-    def _format_aspect(aspect):
-        aspect_class = term2aspect.get(aspect, '未知类别')
-        if aspect_class in lv2_aspects:
-            aspect_class = term2aspect.get(aspect_class) + '-' + aspect_class
-        return '{} ({})'.format(aspect, aspect_class)
-
-    def _format_sentiment(sentiment, verbose=1):
-        # sentiment: (entity, opinion, sentiment)
-        if verbose:
-            return '{} ({}) {}'.format(sentiment[0], term2aspect.get(sentiment[0], sentiment[0]), sentiment[2])
-        else:
-            return '{} {}'.format(term2aspect.get(sentiment[0], sentiment[0]), sentiment[2])
-
+    entities = init_data['entities']
+    term2entity = init_data['term2entity']
+    va2attributes = init_data['va2attributes']
+    term2attributes = init_data['term2attributes']
     text = clean_text(text)
     sents = split_sentences(text)
-    total_aspects = []
-    total_sentiments = []
-    total_nn_aspects = []
-    details = dict()
-    if debug:
-        print('\n{}'.format(text), file=file)
+    # print('分句结果：')
+    # for x in sents:
+    #     print(x)
+    # print('\n')
+    sentiments = []
+    result_list=[]
+    this_entities = copy.deepcopy(entities)
     for sent_idx, sent in enumerate(sents):
-        if debug:
-            print('\nsent {}: {}'.format(sent_idx, sent), file=file)
-        words, postags, arcs = grammar_analysis(sent, entities, lexicon)
-        # sentiment & aspect
-        sentiments, dualistics = sentiment_analysis(sent, words, postags, arcs, lexicon, debug=debug, file=file)
-        aspects, potential_sentiments = detect_aspects(words, aspects_info, va2aspect, dualistics, debug=debug, file=file)
-        # process:
-        # only keep aspects that are pre-defined
-        sentiments = [sentiment for sentiment in sentiments if sentiment[0] in term2aspect]
-        if use_nn:
-            nn_aspect = predict_text(words, model1, nn_kwargs1)
-            nn_sentiment = predict_text(words, model2, nn_kwargs2)
-        # add potential sentiments found by aspect detecting
-        for potential_sentiment in potential_sentiments:
-            if potential_sentiment not in sentiments:
-                sentiments.append(potential_sentiment)
-        sentiments = refine_sentiments(sentiments, term2aspect)
-        if debug:
-            print(' - tokens:', words, file=file)
-            print(' - aspects:', ' | '.join(_format_aspect(aspect) for aspect in aspects), file=file)
-            print(' - sentiments:', ' | '.join(_format_sentiment(sentiment) for sentiment in sentiments), file=file)
-            if use_nn:
-                print(' - nn aspect:', _format_aspect(nn_aspect), file=file)
-                print(' - nn sentiment:', nn_sentiment, file=file)
-        # fix1: attempt whole match
-        if not sentiments:
-            if sent in va_match or (words.count(words[0]) == len(words) and words[0] in va_match):
-                word = sent if sent in va_match else words[0]
-                sentiments.append((va_match[word][0], word, '正面' if va_match[word][1] > 0 else '负面'))
-        """
-        # fix2: fix fine-grained sentiment results by nn results （这个有风险，提升recall的同时会明显降低precision）
-        if not sentiments and not nn_aspect == '以上都不属于' and not nn_sentiment == '无情感' and not nn_sentiment == '句中包含多种情感':
-            for aspect in aspects:
-                if aspect in term2aspect:
-                    sentiments.append((aspect, '? ', nn_sentiment))
-        """
-        if debug:
-            print(' - sentiments (refine):',
-                  ' | '.join(_format_sentiment(sentiment) for sentiment in sentiments), file=file)
-        # log detailed text (grouped by aspects)
-        for sentiment in sentiments:  # sentiment: (entity, opinion, sentiment)
-            # details: [aspect][polarity] -> text
-            details.setdefault(term2aspect[sentiment[0]], dict()).setdefault(sentiment[2], Counter()).update([sent])
-
-        # add sentence results to total_list
-        if aspects:
-            total_aspects.extend(aspects)
-        if sentiments:
-            total_sentiments.extend(sentiments)
-        if use_nn:
-            if not nn_aspect == '以上都不属于':
-                total_nn_aspects.append(nn_aspect)
-    # refine ??
-    # total_sentiments = refine_sentiments(total_sentiments, term2aspect)
-
-    # format
-    total_aspects_str = ' | '.join(unique_everseen(_format_aspect(aspect) for aspect in total_aspects))
-    total_sentiments_str_verbose = ' | '.join(unique_everseen(_format_sentiment(sentiment) for sentiment in total_sentiments))
-    total_sentiments_str = ' | '.join(unique_everseen(_format_sentiment(sentiment, verbose=0) for sentiment in total_sentiments))
-    total_nn_aspects_str = ' | '.join(unique_everseen(total_nn_aspect for total_nn_aspect in total_nn_aspects)) if use_nn else None
-    total_nn_sentiment_str = predict_text(list(_segmentor.segment(text)), model2, nn_kwargs2) if use_nn else None
-
-    if debug:
-        print('\ntext:', text, file=file)
-        print('total aspects:', total_aspects_str, file=file)
-        print('total sentiments:', total_sentiments_str, file=file)
-        print('total sentiments (verbose):', total_sentiments_str_verbose, file=file)
-        print('total nn aspect:', total_nn_aspects_str, file=file)
-        print('total nn sentiment:', total_nn_sentiment_str, file=file)
-        print('=' * 30 + '\n', file=file, flush=True)
-
-    if api_debug:
-        total_sentiments_str = total_sentiments_str_verbose
-
-    return total_aspects_str, total_sentiments_str, total_nn_aspects_str, total_nn_sentiment_str, details
-
-
-def init(use_nn=True):
-    """初始化语料库等资源"""
-    ltp_init()
-    aspects_info = load_aspects(path='libs/aspects.txt')
-    va2aspect = load_va2aspect('libs/va2aspect.txt')
-    va_match = load_vamatch('libs/va_match.txt')
-    lexicon = load_sentiment_lexicon(path='libs/sentiment_lexicon.txt')
-    print('loading nn model')
-    model1 = load_model('libs/aspect-model.h5') if use_nn else None
-    model2 = load_model('libs/sentiment-model.h5') if use_nn else None
-    nn_kwargs1 = pickle.load(open('libs/aspect-nnargs.pkl', 'rb')) if use_nn else None
-    nn_kwargs2 = pickle.load(open('libs/sentiment-nnargs.pkl', 'rb')) if use_nn else None
-    return {
-        'aspects_info': aspects_info,
-        'va2aspect': va2aspect,
-        'va_match': va_match,
-        'lexicon': lexicon,
-        'entities': ENTITY_WHITELIST,
-        'model1': model1,
-        'nn_kwargs1': nn_kwargs1,
-        'model2': model2,
-        'nn_kwargs2': nn_kwargs2
-    }
+        words, postags, arcs = grammar_analysis(text=sent, entities=this_entities, term2entity=term2entity,
+                                                va2attributes=va2attributes, term2attributes=term2attributes)
+        this_entities = sentiment_analysis(sent, words, postags, arcs, this_entities, term2entity, va2attributes,
+                                           term2attributes, debug=debug, file=file,result_list=result_list)
+    # sentiments = entities2sentiments_single(this_entities)
+    sentiments = entities2sentiments_group(this_entities)
+    return sentiments,result_list
 
 
 if __name__ == '__main__':
-    print(clean_text('感觉很好啊'))
-
+    use_nn = False
+    init_data = init(use_nn=use_nn)
+    sentiments = analysis_comment("车的性能很不错， 价位对我来说能接受。外观看来很漂亮，又不失年轻活力的动感！内部空间不是很大", debug=True, file=None,
+                                  use_nn=use_nn, init_data=init_data)
+    for x in sentiments:
+        print(x[0], x[1], x[2], x[3], x[4])

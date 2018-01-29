@@ -3,6 +3,10 @@
 """
 
 import os
+import sys
+import imp
+imp.reload(sys)
+sys.path.append("..")
 
 from flask import Flask, request, redirect, url_for
 from flask import render_template
@@ -15,6 +19,7 @@ from collections import defaultdict
 from werkzeug.utils import secure_filename
 from fine_grained import init, analysis_comment
 from summary import gen_summary
+#from utils.misc_utils import get_args_info
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -24,6 +29,10 @@ app.config['SECRET_KEY'] = 'AIMindreader'
 app.config['UPLOADED_TEXTS_DEST'] = './uploads'
 UPLOAD_FOLDER = './uploads'
 ALLOWED_EXTENSIONS = set(['txt'])
+
+# _NAME = 'AI'
+# _STAMP = get_args_info(_NAME)
+# re_file = open('logs/' + _STAMP + '.txt', 'w')
 
 texts = UploadSet('texts', TEXT)
 configure_uploads(app, texts)
@@ -180,9 +189,9 @@ def multi_analysis_function(multi_review_path):
             ['音响', '效果', 183, 158, 999], ['音响', '音质', 724, 214, 622], ['音响', '声音', 385, 934, 807],
             ['音响', '质量', 395, 905, 681], ['音响', '感觉', 121, 448, 391], ['音响', '音量', 528, 609, 877],
             ['内饰', '整体', 847, 825, 898], ['内饰', '材料', 295, 899, 676], ['内饰', '设计', 596, 541, 489],
-            ['内饰', '风格', 578, 608, 532], ['内饰', '颜色', 549, 481, 454], ['内饰', '配置', 851, 597, 706],
+            ['内饰', '风格', 578, 608, 532], ['内饰', '颜色', 295, 481, 454], ['内饰', '配置', 851, 597, 706],
             ['内饰', '质感', 751, 464, 602], ['内饰', '布局', 316, 508, 750], ['内饰', '造型', 248, 244, 131],
-            ['内饰', '味道', 913, 707, 755], ['内饰', '颜色', 50, 710, 346], ['内饰', '档次', 546, 725, 354],
+            ['内饰', '味道', 913, 707, 755], ['内饰', '档次', 546, 725, 354],
             ['内饰', '手感', 384, 139, 357], ['内饰', '外观', 375, 334, 35], ['内饰', '气味', 11, 249, 263],
             ['导航', '整体', 461, 26, 545], ['导航', '功能', 274, 465, 509], ['导航', '版本', 445, 356, 518],
             ['导航', '反应', 449, 518, 706], ['导航', '声音', 760, 471, 762], ['喇叭', '整体', 915, 518, 537],
@@ -273,12 +282,29 @@ def ai_mindreader_home():
     entity_profile = None
     show_aspect_graph = False
     multi_analysis = None
-    entity_pair, entity_level = read_aspect_file(UPLOAD_FOLDER + '/' + 'entity_default.txt')
-    entity_attr, _ = read_aspect_file(UPLOAD_FOLDER + '/' + 'entity_attr_default.txt', entity_level)
-    entity_synonym, _ = read_aspect_file(UPLOAD_FOLDER + '/' + 'entity_synonym_default.txt', entity_level)
-    attr_synonym, _ = read_aspect_file(UPLOAD_FOLDER + '/' + 'attr_synonym_default.txt')
-    opinion_pair = read_opinion_file(UPLOAD_FOLDER + '/' + 'attr_describe_default.txt')
+    entity_pair, entity_level = read_aspect_file('./KnowledgeBase/whole-part.txt')
+    entity_attr, _ = read_aspect_file('./KnowledgeBase/entity-attribute.txt', entity_level)
+    entity_synonym, _ = read_aspect_file('./KnowledgeBase/entity-synonym.txt', entity_level)
+    attr_synonym, _ = read_aspect_file('./KnowledgeBase/attribute-synonym.txt')
+    opinion_pair = read_opinion_file('./KnowledgeBase/attribute-description.txt')
     if form.is_submitted():
+        if form.submit_text.data:
+            input_text = form.text.data
+            sentiments,result_list = analysis_comment(text = input_text, debug=True, use_nn=use_nn, init_data = init_data)
+            # result_list = [sentiments]
+            for ent,attr,describ,polar,text in result_list:
+                print(ent+' '+attr+' '+describ+' '+str(polar)+' '+text)
+        if form.submit_file.data:
+            try:
+                filename = texts.save(form.file.data)
+                file_url = texts.url(filename)
+                print(file_url)
+                table, download_filepath = gen_summary(filename=filename, use_nn=use_nn, init_data=init_data)
+                download_filepath = 'downloads/' + download_filepath
+                #return send_from_directory('static', 'downloads/' + download_filepath)
+            except UploadNotAllowed as una:
+                upload_error = 'error!'
+                print(una)
         if form.submit_text.data:
             show_aspect_graph = True
             input_text = form.text.data

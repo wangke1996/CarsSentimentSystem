@@ -1,4 +1,4 @@
-function force_aspect(links_opinion_pair,links_entity,links_entity_attr,links_entity_synonym,links_attr_synonym,){
+function force_aspect(links_opinion_pair,links_entity,links_entity_attr,links_entity_synonym,links_attr_synonym){
 	var links_opinion_pair_backup=deepCopy(links_opinion_pair);
     var links_entity_backup=deepCopy(links_entity);
 	var links_entity_attr_backup=deepCopy(links_entity_attr);

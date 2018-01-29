@@ -1,52 +1,13 @@
 function product_profile(links_entity,links_entity_attr,nodes_entity){
-    // var links_opinion_backup=deepCopy(links_opinion);
-    // var links_entity_attr_backup=deepCopy(links_entity_attr);
-	// var nodes = {};
-	// var new_links=new Array();
-	// var attrs=new Array();
-	// var i=0;
-	// var entity_level=1;
-	// for(link in links_entity_attr){
-	// 	if(link.source==entity_name){
-	// 		entity_level=link.level;
-	// 		break;
-	// 	}
-	// }
-	// //(2)从链接中分离出不同的节点
-	// links_entity_attr.forEach(function(link) {
-	// if(link.source == entity_name){
-	// 	new_links[i] = link;
-	// 	attrs[i]=link.target;
-	// 	i=i+1;
-	// 	link.source = nodes[link.source] ||
-	// 	(nodes[link.source] = {name: link.source,level:link.level});//(填加节点数据)
-	// 	link.target = nodes[link.target] || (nodes[link.target] = {name: link.target});
-	// }
-	// });
-	// if(new_links.length===0){
-	// 	return;
-	// }
-	// links_opinion.forEach(function(link) {
-	// if(attrs.indexOf(link.source)>=0){
-	// 	new_links[i] = link;
-	// 	attrs[i]=link.target;
-	// 	i=i+1;
-	// 	link.source = nodes[link.source] ||
-	// 	(nodes[link.source] = {name: link.source});//(填加节点数据)
-	// 	link.target = nodes[link.target] || (nodes[link.target] = {name: link.target,polar:link.polar});
-	// }
-	// });
-
-	//var new_links_backup=deepCopy(new_links);
-	var width = 1000,
-		height = 1000;
+	var width = 1500,
+		height = 1500;
 
 	var force = d3.layout.force()
 		.nodes(d3.values(nodes_entity))
 		.links(links_entity)
 		.size([width, height])
-		.linkDistance(60)
-		.charge(-800)
+		.linkDistance(150)
+		.charge(-1500)
 		.on("tick", tick)
 		.start();
 
@@ -80,7 +41,10 @@ function product_profile(links_entity,links_entity_attr,nodes_entity){
 			.attr("class", "node")
 			.on("mouseover", mouseover)
 			.on("mouseout", mouseout)
-			.call(force.drag);
+			.call(force.drag)
+			.on("dblclick",function(d){
+				profile_detail(links_entity_attr,nodes_entity,d.name,Math.floor(10000*Math.random()))
+			}) ;
 	var arc=node.selectAll("g.arc").data(function(d){
 		return d3.layout.pie([d.positive,d.negative,d.ordinary])([d.positive,d.negative,d.ordinary])
     }).enter()
@@ -137,8 +101,8 @@ function product_profile(links_entity,links_entity_attr,nodes_entity){
 		  .attr("y2", function(d) { return d.target.y; });
 
 	  node
-		  .attr("transform", function(d) { 
-				return "translate(" + d.x + "," + d.y + ")"; 
+		  .attr("transform", function(d) {
+				return "translate(" + d.x + "," + d.y + ")";
 		  });
 	  arc
 		  .attr("transform", function(d) {

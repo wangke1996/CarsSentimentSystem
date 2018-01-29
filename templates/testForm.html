@@ -126,6 +126,7 @@
         {% if entity_profile%}
         <script type="text/javascript" src="/static/d3.js"></script>
         <script type="text/javascript" src="/static/product_profile.js"></script>
+        <script type="text/javascript" src="/static/profile_detail.js"></script>
         <script type="text/javascript">
             var links_entity = new Array();
             var links_entity_attr = new Array();
@@ -147,6 +148,7 @@
             i=0;
             {% for src,targ, p,n,o in multi_analysis %}
                 links_entity_attr[i]={source:"{{src}}",target:"{{targ}}",level:nodes_entity["{{src}}"].level,positive:{{p}},negative:{{n}},ordinary:{{o}}};
+                i=i+1;
             {% endfor %}
             product_profile(links_entity,links_entity_attr,nodes_entity,);
         </script>
