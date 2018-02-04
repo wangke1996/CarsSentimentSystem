@@ -248,16 +248,26 @@ def single_analysis_results(single_result_pair, entity_pair, entity_level):
     entity_included = []
     for pair in single_result_pair:
         entity_included.append(pair[0])
+    flag_included_all=False
+    while flag_included_all is False:
+        flag_included_all=True
+        for pair in entity_pair:
+            if pair[1] in entity_included and pair[0] not in entity_included:
+                entity_included.append(pair[0])
+                flag_included_all=False
     for pair in entity_pair:
         if pair[1] in entity_included:
-            results.append([pair[0], pair[1], '', -2, pair[2]])
+            results.append([pair[0], pair[1], '', -2, pair[2],''])
     for pair in single_result_pair:
         ent = pair[0]
         attr = pair[1]
         describe = pair[2]
         polarity = pair[3]
+        if polarity is None:
+            polarity=0
+        sentence =pair[4]
         level = entity_level[ent]
-        results.append([ent, attr, describe, polarity, level])
+        results.append([ent, attr, describe, polarity, level, sentence])
     return results
 
 
@@ -290,11 +300,14 @@ def ai_mindreader_home():
     if form.is_submitted():
         if form.submit_text.data:
             input_text = form.text.data
-            sentiments,result_list = analysis_comment(text = input_text, debug=True, use_nn=use_nn, init_data = init_data)
+            sentiments,single_pairs = analysis_comment(text = input_text, debug=True, use_nn=use_nn, init_data = init_data)
             # result_list = [sentiments]
-            for ent,attr,describ,polar,text in result_list:
+            for ent,attr,describ,polar,text in single_pairs:
                 print(ent+' '+attr+' '+describ+' '+str(polar)+' '+text)
-        if form.submit_file.data:
+            show_aspect_graph = False
+            input_text = form.text.data
+            single_results = single_analysis_results(single_pairs, entity_pair, entity_level)
+        elif form.submit_file.data:
             try:
                 filename = texts.save(form.file.data)
                 file_url = texts.url(filename)
@@ -305,13 +318,13 @@ def ai_mindreader_home():
             except UploadNotAllowed as una:
                 upload_error = 'error!'
                 print(una)
-        if form.submit_text.data:
-            show_aspect_graph = True
-            input_text = form.text.data
-            single_pairs = single_analysis_function(input_text)
-            single_results = single_analysis_results(single_pairs, entity_pair, entity_level)
-            # _, sentiments, _, _, _ = analysis_comment(input_text, debug=True, file=re_file, use_nn=use_nn, **init_data)
-            # result_list = [sentiments]
+        # if form.submit_text.data:
+        #     show_aspect_graph = True
+        #     input_text = form.text.data
+        #     single_pairs = single_analysis_function(input_text)
+        #     single_results = single_analysis_results(single_pairs, entity_pair, entity_level)
+        #     # _, sentiments, _, _, _ = analysis_comment(input_text, debug=True, file=re_file, use_nn=use_nn, **init_data)
+        #     # result_list = [sentiments]
         elif form.submit_file.data:
             show_aspect_graph = False
             file = request.files['file']

@@ -592,6 +592,8 @@ def sentiment_analysis(text, words, postags, arcs,
                         # got_attribute_name = True
                 # if got_attribute_name == True:
                 #     print("got attribute name:", this_attribute_name)
+                if got_attribute_name is False:
+                    this_attribute_name = "整体"
             "根据eneity，attibute获得score"
             this_entity = _get_entity(this_entity_name)
             this_attribute = _get_attribute(this_entity, this_attribute_name)
@@ -604,23 +606,23 @@ def sentiment_analysis(text, words, postags, arcs,
             try:
                 print('Get entity ', this_entity.name, '\tattribute ', this_attribute.name, '\tva ', this_va, '\tscore ',
                   score)
+                result_list.append([this_entity.name,this_attribute.name,this_va,score,text])
+
+
+                # 更新entity树
+                if score == 1:
+                    this_attribute.good_comments.add(this_va)
+                    this_attribute.good_num = this_attribute.good_num + 1
+                elif score == -1:
+                    this_attribute.bad_comments.add(this_va)
+                    this_attribute.bad_num = this_attribute.bad_num + 1
+                elif score == 0:
+                    this_attribute.normal_comments.add(this_va)
+                    this_attribute.normal_num = this_attribute.normal_num + 1
+                else:
+                    this_attribute.notsure_num = this_attribute.notsure_num + 1
             except Exception:
                 pass
-            result_list.append([this_entity.name,this_attribute.name,this_va,score,text])
-
-
-            # 更新entity树
-            if score == 1:
-                this_attribute.good_comments.add(this_va)
-                this_attribute.good_num = this_attribute.good_num + 1
-            elif score == -1:
-                this_attribute.bad_comments.add(this_va)
-                this_attribute.bad_num = this_attribute.bad_num + 1
-            elif score == 0:
-                this_attribute.normal_comments.add(this_va)
-                this_attribute.normal_num = this_attribute.normal_num + 1
-            else:
-                this_attribute.notsure_num = this_attribute.notsure_num + 1
         got_score = False
     words.remove('HED')  # don't forget this!
     return entities
@@ -666,7 +668,7 @@ def analysis_comment(text, init_data,
             - 结果后处理
         - 汇总得到整个评论的结果
     """
-    print('文本内容：\t', text, '\n')
+    # print('文本内容：\t', text, '\n')
 
     entities = init_data['entities']
     term2entity = init_data['term2entity']

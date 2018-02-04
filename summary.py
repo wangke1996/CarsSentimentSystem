@@ -69,7 +69,6 @@ from fine_grained import analysis_comment
 
 GENERAL = '整体描述'
 
-
 def load_texts(filename):
     texts = []
     try:

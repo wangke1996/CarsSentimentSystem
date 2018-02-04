@@ -28,7 +28,7 @@
 			<script type="text/javascript">  
             var link_single=new Array();
             var i=0;
-            {% for src,targ,describe,polar,level in single_results %}
+            {% for src,targ,describe,polar,level,sentence in single_results %}
 			{
 				{% if (polar==-2) %}{
 				link_single[i]={source:"{{src}}",target:"{{targ}}",level:{{level}},type:"ent_ent"};
