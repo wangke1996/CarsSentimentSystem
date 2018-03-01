@@ -1,10 +1,12 @@
 """
 网站Demo API模块
 """
-
+# -*- coding: UTF-8 -*-
 import os
 import sys
+import numpy as np
 import imp
+import json
 imp.reload(sys)
 sys.path.append("..")
 
@@ -19,7 +21,8 @@ from collections import defaultdict
 from werkzeug.utils import secure_filename
 from fine_grained import init, analysis_comment
 from summary import gen_summary
-#from utils.misc_utils import get_args_info
+
+# from utils.misc_utils import get_args_info
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -41,11 +44,62 @@ patch_request_class(app)  # 文件大小限制，默认为16MB
 use_nn = False
 init_data = init(use_nn=use_nn)
 
+profile_tree=None
+upload_file_name=None
+ent_attr_polar=None
+ent_attr_text=None
+ent_polar=None
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
     return render_template('home.html')
 
+@app.route('/views', methods=['GET', 'POST'])
+def menu():
+    return render_template('menu_test.html',upload_file_name=upload_file_name,ent='全部')
+
+@app.route('/details', methods=['GET', 'POST'])
+def detail():
+    ent = request.args.get('name')
+    ent_detail=build_attr_tree(ent)
+    file = open('static/result_json/' + upload_file_name + '_'+ent+'.js', 'wb')
+    file.write(('data[\''+ent+'\']=\'' + json.dumps(ent_detail) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+    file.close()
+    return render_template('menu_test.html',upload_file_name=upload_file_name,ent=ent)
+
+def build_attr_tree(ent):
+    global ent_polar,ent_attr_polar,ent_attr_text
+    root = {'name': ent, 'id': 1, 'pos': ent_polar[ent][0], 'neu': ent_polar[ent][1], 'neg': ent_polar[ent][2], 'child': [],'type':'root'}
+    id=1
+    for ent_attr, polar in ent_attr_polar.items():
+        if ent != ent_attr.split('-')[0]:
+            continue
+        attr = ent_attr.split('-')[1]
+        attr_node = {'name': attr, 'id': id + 1, 'pos': ent_attr_polar[ent_attr][0], 'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2], 'child': [],'type':'attr'}
+        pos_node = {'name':'正向评价', 'id': id + 2, 'pos': ent_attr_polar[ent_attr][0], 'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2],  'child': [],'type':'sentiment_node'}
+        neu_node = {'name': '中性评价', 'id': id + 3, 'pos': ent_attr_polar[ent_attr][0], 'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2],  'child': [],'type':'sentiment_node'}
+        neg_node = {'name': '负向评价', 'id': id + 4, 'pos': ent_attr_polar[ent_attr][0], 'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2],  'child': [],'type':'sentiment_node'}
+        id=id+4
+        pos_sentence=ent_attr_text[ent_attr][0]
+        for sentence in pos_sentence:
+            id=id+1
+            node={'name':sentence, 'id': id, 'pos':0, 'neu': 0, 'neg': 0, 'child': [],'type':'sentence'}
+            pos_node['child'].append(node)
+        neu_sentence = ent_attr_text[ent_attr][1]
+        for sentence in neu_sentence:
+            id = id + 1
+            node = {'name': sentence, 'id': id, 'pos': 0, 'neu': 0, 'neg': 0, 'child': [],'type':'sentence'}
+            neu_node['child'].append(node)
+        neg_sentence = ent_attr_text[ent_attr][2]
+        for sentence in neg_sentence:
+            id = id + 1
+            node = {'name': sentence, 'id': id, 'pos': 0, 'neu': 0, 'neg': 0, 'child': [],'type':'sentence'}
+            neg_node['child'].append(node)
+        attr_node['child'].append(pos_node)
+        attr_node['child'].append(neu_node)
+        attr_node['child'].append(neg_node)
+        root['child'].append(attr_node)
+    return root
 
 class TrainingForm(FlaskForm):
     text = TextAreaField('请输入待分析的文本：')
@@ -231,6 +285,58 @@ def multi_analysis_function(multi_review_path):
     return pair
 
 
+def multi_analysis_result(entity_pair):
+    global ent_attr_polar,ent_attr_text,ent_polar
+    ent_polar = dict()
+    ent_text = dict()
+    ent_attribute = dict()
+    for ent_attr, polar in ent_attr_polar.items():
+        ent = ent_attr.split('-')[0]
+        attr = ent_attr.split('-')[1]
+        attrs = ent_attribute.setdefault(ent, [])
+        if attr not in attrs:
+            attrs.append(attr)
+            ent_attribute[ent] = attrs
+        polars = ent_polar.setdefault(ent, [0, 0, 0])
+        polars = (np.array(polars) + np.array(polar)).tolist()
+        ent_polar[ent] = polars
+    for ent, _ in ent_polar.items():
+        txts = ent_text.setdefault(ent, [[], [], []])
+        general_txt = ent_attr_text.setdefault(ent + '-' + '整体', [[], [], []])
+        for i in range(3):
+            txts[i] = txts[i] + general_txt[i]
+            if not txts[i]:
+                for attr in ent_attribute[ent]:
+                    txt = ent_attr_text[ent + '-' + attr][i]
+                    if txt:
+                        txts[i] = txts[i] + txt
+                        break
+        ent_text[ent] = txts
+    root = {'name': '汽车', 'id': 1, 'pos': ent_polar['汽车'][0], 'neu': ent_polar['汽车'][1], 'neg': ent_polar['汽车'][2],
+            'pos_sentence': ' || '.join(ent_text['汽车'][0]), 'neu_sentence': ' || '.join(ent_text['汽车'][1]),
+            'neg_sentence': ' || '.join(ent_text['汽车'][2]), 'child': []}
+    id = 1
+    _ = build_tree(entity_pair, root,  ent_text, id)
+    return root
+
+
+def build_tree(entity_pair, node, ent_text, id):
+    global ent_polar
+    for parent, child, level in entity_pair:
+        if parent == node['name']:
+            id = id + 1
+            ent_polar.setdefault(child,[0,0,0])
+            ent_text.setdefault(child,[[],[],[]])
+            new_node = {'name': child, 'id': id, 'pos': ent_polar[child][0], 'neu': ent_polar[child][1],
+                        'neg': ent_polar[child][2],
+                        'pos_sentence': ' || '.join(ent_text[child][0]),
+                        'neu_sentence': ' || '.join(ent_text[child][1]),
+                        'neg_sentence': ' || '.join(ent_text[child][2]), 'child': []}
+            node['child'].append(new_node)
+            id = build_tree(entity_pair, new_node, ent_text, id)
+    return id
+
+
 def entity_profile_dict(multi_review_result):
     pair = []
     dict = {}
@@ -248,31 +354,31 @@ def single_analysis_results(single_result_pair, entity_pair, entity_level):
     entity_included = []
     for pair in single_result_pair:
         entity_included.append(pair[0])
-    flag_included_all=False
+    flag_included_all = False
     while flag_included_all is False:
-        flag_included_all=True
+        flag_included_all = True
         for pair in entity_pair:
             if pair[1] in entity_included and pair[0] not in entity_included:
                 entity_included.append(pair[0])
-                flag_included_all=False
+                flag_included_all = False
     for pair in entity_pair:
         if pair[1] in entity_included:
-            results.append([pair[0], pair[1], '', -2, pair[2],''])
+            results.append([pair[0], pair[1], '', -2, pair[2], ''])
     for pair in single_result_pair:
         ent = pair[0]
         attr = pair[1]
         describe = pair[2]
         polarity = pair[3]
         if polarity is None:
-            polarity=0
-        sentence =pair[4]
+            polarity = 0
+        sentence = pair[4]
         level = entity_level[ent]
         results.append([ent, attr, describe, polarity, level, sentence])
     return results
 
 
-@app.route('/api/AIMindreader', methods=['GET', 'POST'])
-def ai_mindreader_home():
+@app.route('/home', methods=['GET', 'POST'])
+def homepage():
     # form = SentimentForm()
     form = TrainingForm()
     input_text = None
@@ -292,6 +398,8 @@ def ai_mindreader_home():
     entity_profile = None
     show_aspect_graph = False
     multi_analysis = None
+    global profile_tree
+    global upload_file_name
     entity_pair, entity_level = read_aspect_file('./KnowledgeBase/whole-part.txt')
     entity_attr, _ = read_aspect_file('./KnowledgeBase/entity-attribute.txt', entity_level)
     entity_synonym, _ = read_aspect_file('./KnowledgeBase/entity-synonym.txt', entity_level)
@@ -300,10 +408,10 @@ def ai_mindreader_home():
     if form.is_submitted():
         if form.submit_text.data:
             input_text = form.text.data
-            sentiments,single_pairs = analysis_comment(text = input_text, debug=True, use_nn=use_nn, init_data = init_data)
+            sentiments, single_pairs = analysis_comment(text=input_text, debug=True, use_nn=use_nn, init_data=init_data)
             # result_list = [sentiments]
-            for ent,attr,describ,polar,text in single_pairs:
-                print(ent+' '+attr+' '+describ+' '+str(polar)+' '+text)
+            for ent, attr, describ, polar, text in single_pairs:
+                print(ent + ' ' + attr + ' ' + describ + ' ' + str(polar) + ' ' + text)
             show_aspect_graph = False
             input_text = form.text.data
             single_results = single_analysis_results(single_pairs, entity_pair, entity_level)
@@ -312,9 +420,17 @@ def ai_mindreader_home():
                 filename = texts.save(form.file.data)
                 file_url = texts.url(filename)
                 print(file_url)
-                table, download_filepath = gen_summary(filename=filename, use_nn=use_nn, init_data=init_data)
+                global ent_attr_polar,ent_attr_text
+                ent_attr_polar, ent_attr_text, download_filepath = gen_summary(filename=filename, use_nn=use_nn,
+                                                                               init_data=init_data)
+                profile_tree=multi_analysis_result(entity_pair)
                 download_filepath = 'downloads/' + download_filepath
-                #return send_from_directory('static', 'downloads/' + download_filepath)
+                upload_file_name=filename
+                file = open('static/result_json/' + upload_file_name + '.js', 'wb')
+                file.write(('var data=new Array();\ndata[\'全部\']=\''+json.dumps(profile_tree)+'\';').replace('\\"','\\\\"').encode('utf-8'))
+                file.close()
+                # menu(profile_tree)
+                # return send_from_directory('static', 'downloads/' + download_filepath)
             except UploadNotAllowed as una:
                 upload_error = 'error!'
                 print(una)
@@ -389,7 +505,8 @@ def ai_mindreader_home():
                            single_results=single_results,
                            show_aspect_graph=show_aspect_graph,
                            entity_profile=entity_profile,
-                           multi_analysis=multi_analysis)
+                           multi_analysis=multi_analysis,
+                           profile_tree=profile_tree)
     # return render_template('sentimentForm.html', form=form,
     #                        input_text=input_text,
     #                        result_list=result_list,

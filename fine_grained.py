@@ -406,8 +406,8 @@ def sentiment_analysis(text, words, postags, arcs,
     """情感分析模块
     算法思路：根据Dependency Parser的结果，结合一系列预定义的语法规则，抽取情感搭配
     """
-    print()
-    print(text)
+    # print()
+    # print(text)
     words.append('HED')
     parcs = [(arc.relation, (arc.head - 1, words[arc.head - 1]), (idx, words[idx])) for idx, arc in enumerate(arcs)]
 
@@ -604,8 +604,7 @@ def sentiment_analysis(text, words, postags, arcs,
             if score != None:
                 score = score * (-1 if this_va_num in negation_logs else 1)
             try:
-                print('Get entity ', this_entity.name, '\tattribute ', this_attribute.name, '\tva ', this_va, '\tscore ',
-                  score)
+                # print('Get entity ', this_entity.name, '\tattribute ', this_attribute.name, '\tva ', this_va, '\tscore ', score)
                 result_list.append([this_entity.name,this_attribute.name,this_va,score,text])
 
 
@@ -656,8 +655,8 @@ def entities2sentiments_group(entities):
     return sentiments
 
 
-def analysis_comment(text, init_data,
-                     debug=False, file=sys.stdout, apiapi_debug=False, use_nn=True):
+def analysis_comment(text,
+                     debug=False, file=sys.stdout, apiapi_debug=False, use_nn=True,**init_data):
     """处理单条评论的api接口
     处理流程：
         - 预处理
