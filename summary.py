@@ -1,12 +1,16 @@
 from collections import Counter
 from pprint import pprint
 from tqdm import tqdm
+import global_var as gl
 def gen_summary(texts=None, filename=None, init_data=None, use_nn=True):
     if not texts:
         texts = load_texts(filename)
     ent_attr_polar=dict()
     ent_attr_text=dict()
+    progress=0
     for text in tqdm(texts, desc='analyzing'):
+        progress=progress+1
+        gl.set_value('PROGRESS',round(100*progress/len(texts)))
         _, single_pairs = analysis_comment(text, debug=False, use_nn=use_nn, **init_data)
         for ent, attr, describ, polar, txt in single_pairs:
             attr_polars=ent_attr_polar.setdefault(ent+'-'+attr,[0,0,0]) # value is the number of positive/neural/negative reviews of the attribute

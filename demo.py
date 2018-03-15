@@ -7,9 +7,14 @@ import sys
 import numpy as np
 import imp
 import json
+import random
+import global_var as gl
+
+gl._init()
+gl.set_value('PROGRESS', 0)  # 后端分析进度百分比
+gl.set_value('STATE', 'free')
 imp.reload(sys)
 sys.path.append("..")
-
 from flask import Flask, request, redirect, url_for
 from flask import render_template
 from flask_bootstrap import Bootstrap
@@ -21,6 +26,11 @@ from collections import defaultdict
 from werkzeug.utils import secure_filename
 from fine_grained import init, analysis_comment
 from summary import gen_summary
+# 不显示server输出
+import logging
+
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 # from utils.misc_utils import get_args_info
 
@@ -44,62 +54,295 @@ patch_request_class(app)  # 文件大小限制，默认为16MB
 use_nn = False
 init_data = init(use_nn=use_nn)
 
-profile_tree=None
-upload_file_name=None
-ent_attr_polar=None
-ent_attr_text=None
-ent_polar=None
+profile_tree = None
+ent_attr_polar = None
+ent_attr_text = None
+ent_polar = None
 
-@app.route('/', methods=['GET', 'POST'])
+
+def knowledge_base_init():
+    entity_pair, entity_level = read_aspect_file('./KnowledgeBase/whole-part.txt')
+    entity_attr, _ = read_aspect_file('./KnowledgeBase/entity-attribute.txt', entity_level)
+    entity_synonym, _ = read_aspect_file('./KnowledgeBase/entity-synonym.txt', entity_level)
+    attr_synonym, _ = read_aspect_file('./KnowledgeBase/attribute-synonym.txt')
+    opinion_pair = read_opinion_file('./KnowledgeBase/attribute-description.txt')
+    entity_tree = {'name': '汽车', 'child': [], 'id': 1, 'type': 'entity'}
+    kb_build_entity(entity_tree, entity_pair, 1)
+    gl.set_value('ENTITY_PAIR', entity_pair)
+    gl.set_value('ENTITY_LEVEL', entity_level)
+    gl.set_value('ENTITY_ATTRIBUTE', entity_attr)
+    gl.set_value('ENTITY_SYNONYM', entity_synonym)
+    gl.set_value('ATTRIBUTE_SYNONYM', attr_synonym)
+    gl.set_value('OPINION_PAIR', opinion_pair)
+    gl.set_value('ENTITY_TREE', entity_tree)
+
+
+def kb_build_entity(node, entity_pair, id):
+    for parent, child, _ in entity_pair:
+        if parent == node['name']:
+            id = id + 1
+            node['child'].append({'name': child, 'child': [], 'id': id, 'type': 'entity'})
+    for child in node['child']:
+        id = kb_build_entity(child, entity_pair, id)
+    return id
+
+
+def kb_build_level2(lv1_lv2, root_name, lv1_type, lv2_type):
+    root = {'name': root_name, 'child': [], 'id': 1, 'type': lv1_type}
+    id = 1
+    for lv1, lv2, _ in lv1_lv2:
+        if lv1 != root_name:
+            continue
+        children = root['child']
+        if lv2 not in children:
+            id = id + 1
+            children.append({'name': lv2, 'child': [], 'id': id, 'type': lv2_type})
+    return root
+
+
+def kb_build_attr_opnion(attr_opinion, attr_name):
+    root = {'name': attr_name, 'child': [], 'id': 1, 'type': 'attribute'}
+    pos_node = {'name': '正向描述', 'child': [], 'id': 2, 'type': 'describe'}
+    neu_node = {'name': '中性描述', 'child': [], 'id': 3, 'type': 'describe'}
+    neg_node = {'name': '负向描述', 'child': [], 'id': 4, 'type': 'describe'}
+    id = 4
+    for attr, opinion, polar in attr_opinion:
+        if attr != attr_name:
+            continue
+        id = id + 1;
+        if polar == 1:
+            pos_node['child'].append({'name': opinion, 'child': [], 'id': id, 'type': 'opinion', 'polar': 1})
+        elif polar == -1:
+            neg_node['child'].append({'name': opinion, 'child': [], 'id': id, 'type': 'opinion', 'polar': -1})
+        else:
+            neu_node['child'].append({'name': opinion, 'child': [], 'id': id, 'type': 'opinion', 'polar': 0})
+    root['child'].append(pos_node)
+    root['child'].append(neu_node)
+    root['child'].append(neg_node)
+    return root
+
+
+@app.route('/index', methods=['GET', 'POST'])
 def home():
     return render_template('home.html')
 
+
+@app.route('/contact', methods=['GET', 'POST'])
+def contact():
+    return render_template('contact.html')
+
+
+@app.route('/introduction', methods=['GET', 'POST'])
+def introduction():
+    return render_template('introduction.html')
+
+@app.route('/knowledge_base', methods=['GET', 'POST'])
+def kb_graph():
+    ent = request.args.get('entity')
+    attr = request.args.get('attribute')
+    if ent is None:
+        ent='0'
+    if attr is None:
+        attr='0'
+    entity_tree = gl.get_value('ENTITY_TREE', None)
+    if entity_tree is None:
+        knowledge_base_init()
+        entity_tree = gl.get_value('ENTITY_TREE')
+    if not os.path.exists('static/kb_json/whole_part.js'):
+        file = open('static/kb_json/whole_part.js', 'wb')
+        file.write(('whole_part=\'' + json.dumps(entity_tree) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+        file.close()
+    if ent != '0':
+        if not os.path.exists('static/kb_json/' + ent + '.js'):
+            ent_attr = kb_build_level2(gl.get_value('ENTITY_ATTRIBUTE'), ent, 'entity', 'attribute')
+            ent_synonym = kb_build_level2(gl.get_value('ENTITY_SYNONYM'), ent, 'entity', 'entity_synonym')
+            file = open('static/kb_json/' + ent + '.js', 'wb')
+            file.write(('ent_attr=\'' + json.dumps(ent_attr) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+            file.write(('ent_synonym=\'' + json.dumps(ent_synonym) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+            file.close()
+    else:
+        ent = None
+    if attr != '0':
+        if not os.path.exists('static/kb_json/' + attr + '.js'):
+            attr_opinion = kb_build_attr_opnion(gl.get_value('OPINION_PAIR'),attr)
+            attr_synonym=kb_build_level2(gl.get_value('ATTRIBUTE_SYNONYM'),attr,'attribute','attribute_synonym')
+            file = open('static/kb_json/' + attr + '.js', 'wb')
+            file.write(('attr_opinion=\'' + json.dumps(attr_opinion) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+            file.write(('attr_synonym=\'' + json.dumps(attr_synonym) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+            file.close()
+    else:
+        attr = None
+    return render_template('knowledge_base.html', ent=ent, attr=attr)
+
+
+@app.route('/getProfile', methods=['GET', 'POST'])
+def get_profile():
+    ent=request.args.get('ent')
+    if ent is None:
+        return 'Get a None entity!'
+    if ent !='全部':
+        ent_detail = build_attr_tree(ent, 15)
+        file = open('static/result_json/' + gl.get_value('UPLOAD_FILE_PATH', None) + '_' + ent + '.js', 'wb')
+        file.write(
+            ('data[\'' + ent + '\']=\'' + json.dumps(ent_detail) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+        file.close()
+    gl.set_value('STATE','free')
+    return 'succeed'
+
+
+@app.route('/analysis', methods=['GET', 'POST'])
+def analysis():
+    ent = None
+    type = request.args.get('type')
+    if type == 'views':
+        ent = '全部'
+        gl.set_value('STATE', 'free')
+    elif type == 'details':
+        ent = request.args.get('name')
+        ent_detail = build_attr_tree(ent, 15)
+        file = open('static/result_json/' + gl.get_value('UPLOAD_FILE_PATH', None) + '_' + ent + '.js', 'wb')
+        file.write(
+            ('data[\'' + ent + '\']=\'' + json.dumps(ent_detail) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+        file.close()
+        gl.set_value('STATE', 'free')
+
+    form = AnalysisForm()
+    input_text = None
+    upload_error = None
+    single_results = None
+    single_pairs = None
+    global profile_tree
+
+    entity_pair = gl.get_value('ENTITY_PAIR', None)
+    if entity_pair is None:
+        knowledge_base_init()
+        entity_pair = gl.get_value('ENTITY_PAIR')
+    entity_level = gl.get_value('ENTITY_LEVEL')
+    if form.is_submitted():
+        if form.submit_text.data:
+            input_text = form.text.data
+            sentiments, single_pairs = analysis_comment(text=input_text, debug=True, use_nn=use_nn, **init_data)
+            # result_list = [sentiments]
+            single_pairs = list(set([tuple(t) for t in single_pairs]))
+            for entity, attr, describ, polar, text in single_pairs:
+                print(entity + ' ' + attr + ' ' + describ + ' ' + str(polar) + ' ' + text)
+            input_text = form.text.data
+            single_results = single_analysis_results(single_pairs, entity_pair, entity_level)
+        elif form.submit_file.data:
+            try:
+                filename = texts.save(form.file.data)
+                file_url = texts.url(filename)
+                print(file_url)
+                global ent_attr_polar, ent_attr_text
+                gl.set_value('STATE', 'busy')
+                ent_attr_polar, ent_attr_text, download_filepath = gen_summary(filename=filename, use_nn=use_nn,
+                                                                               init_data=init_data)
+                profile_tree = multi_analysis_result(entity_pair)
+                gl.set_value('DOWNLOAD_FILE_PATH', 'downloads/' + download_filepath)
+                gl.set_value('UPLOAD_FILE_PATH', filename)
+                file = open('static/result_json/' + filename + '.js', 'wb')
+                file.write(('var data=new Array();\ndata[\'全部\']=\'' + json.dumps(profile_tree) + '\';').replace('\\"',
+                                                                                                                 '\\\\"').encode(
+                    'utf-8'))
+                file.close()
+                ent = None
+            except UploadNotAllowed as una:
+                upload_error = 'error!'
+                print(una)
+
+    return render_template('review_analysis.html', form=form,
+                           input_text=input_text,
+                           upload_error=upload_error,
+                           download_filepath=gl.get_value('DOWNLOAD_FILE_PATH', None),
+                           single_results=single_results, single_pairs=single_pairs,
+                           upload_file_name=gl.get_value('UPLOAD_FILE_PATH', None),
+                           profile_tree=profile_tree,
+                           ent=ent)
+
+
+@app.route('/get_progress', methods=['GET', 'POST'])
+def get_progress():
+    opt = request.args.get('opt')
+    if opt == 'reset':
+        gl.set_value('STATE', 'free')
+        gl.set_value('PROGRESS', 0)
+    return gl.get_value('STATE') + '-' + str(gl.get_value('PROGRESS'))
+
+
 @app.route('/views', methods=['GET', 'POST'])
 def menu():
-    return render_template('menu_test.html',upload_file_name=upload_file_name,ent='全部')
+    form = AnalysisForm()
+    return render_template('review_analysis.html', form=form,
+                           download_filepath=gl.get_value('DOWNLOAD_FILE_PATH', None),
+                           upload_file_name=gl.get_value('UPLOAD_FILE_PATH', None), ent='全部')
+
 
 @app.route('/details', methods=['GET', 'POST'])
 def detail():
+    form = AnalysisForm()
     ent = request.args.get('name')
-    ent_detail=build_attr_tree(ent)
-    file = open('static/result_json/' + upload_file_name + '_'+ent+'.js', 'wb')
-    file.write(('data[\''+ent+'\']=\'' + json.dumps(ent_detail) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+    ent_detail = build_attr_tree(ent, 15)
+    file = open('static/result_json/' + gl.get_value('UPLOAD_FILE_PATH', None) + '_' + ent + '.js', 'wb')
+    file.write(('data[\'' + ent + '\']=\'' + json.dumps(ent_detail) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
     file.close()
-    return render_template('menu_test.html',upload_file_name=upload_file_name,ent=ent)
+    return render_template('review_analysis.html', form=form,
+                           download_filepath=gl.get_value('DOWNLOAD_FILE_PATH', None),
+                           upload_file_name=gl.get_value('UPLOAD_FILE_PATH', None), ent=ent)
 
-def build_attr_tree(ent):
-    global ent_polar,ent_attr_polar,ent_attr_text
-    root = {'name': ent, 'id': 1, 'pos': ent_polar[ent][0], 'neu': ent_polar[ent][1], 'neg': ent_polar[ent][2], 'child': [],'type':'root'}
-    id=1
+
+def build_attr_tree(ent, sample_num):
+    global ent_polar, ent_attr_polar, ent_attr_text
+    root = {'name': ent, 'id': 1, 'pos': ent_polar[ent][0], 'neu': ent_polar[ent][1], 'neg': ent_polar[ent][2],
+            'child': [], 'type': 'entity'}
+    id = 1
     for ent_attr, polar in ent_attr_polar.items():
         if ent != ent_attr.split('-')[0]:
             continue
         attr = ent_attr.split('-')[1]
-        attr_node = {'name': attr, 'id': id + 1, 'pos': ent_attr_polar[ent_attr][0], 'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2], 'child': [],'type':'attr'}
-        pos_node = {'name':'正向评价', 'id': id + 2, 'pos': ent_attr_polar[ent_attr][0], 'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2],  'child': [],'type':'sentiment_node'}
-        neu_node = {'name': '中性评价', 'id': id + 3, 'pos': ent_attr_polar[ent_attr][0], 'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2],  'child': [],'type':'sentiment_node'}
-        neg_node = {'name': '负向评价', 'id': id + 4, 'pos': ent_attr_polar[ent_attr][0], 'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2],  'child': [],'type':'sentiment_node'}
-        id=id+4
-        pos_sentence=ent_attr_text[ent_attr][0]
+        attr_node = {'name': attr, 'id': id + 1, 'pos': ent_attr_polar[ent_attr][0], 'neu': ent_attr_polar[ent_attr][1],
+                     'neg': ent_attr_polar[ent_attr][2], 'child': [], 'type': 'attr'}
+        pos_node = {'name': '正向评价', 'id': id + 2, 'pos': ent_attr_polar[ent_attr][0],
+                    'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2], 'child': [],
+                    'type': 'sentiment_node'}
+        neu_node = {'name': '中性评价', 'id': id + 3, 'pos': ent_attr_polar[ent_attr][0],
+                    'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2], 'child': [],
+                    'type': 'sentiment_node'}
+        neg_node = {'name': '负向评价', 'id': id + 4, 'pos': ent_attr_polar[ent_attr][0],
+                    'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2], 'child': [],
+                    'type': 'sentiment_node'}
+        id = id + 4
+        pos_sentence = ent_attr_text[ent_attr][0]
         for sentence in pos_sentence:
-            id=id+1
-            node={'name':sentence, 'id': id, 'pos':0, 'neu': 0, 'neg': 0, 'child': [],'type':'sentence'}
+            id = id + 1
+            node = {'name': sentence, 'id': id, 'pos': 0, 'neu': 0, 'neg': 0, 'child': [], 'type': 'sentence'}
             pos_node['child'].append(node)
+        pos_node['child'] = random.sample(pos_node['child'], min(sample_num, len(pos_node['child'])))
         neu_sentence = ent_attr_text[ent_attr][1]
         for sentence in neu_sentence:
             id = id + 1
-            node = {'name': sentence, 'id': id, 'pos': 0, 'neu': 0, 'neg': 0, 'child': [],'type':'sentence'}
+            node = {'name': sentence, 'id': id, 'pos': 0, 'neu': 0, 'neg': 0, 'child': [], 'type': 'sentence'}
             neu_node['child'].append(node)
+        neu_node['child'] = random.sample(neu_node['child'], min(sample_num, len(neu_node['child'])))
         neg_sentence = ent_attr_text[ent_attr][2]
         for sentence in neg_sentence:
             id = id + 1
-            node = {'name': sentence, 'id': id, 'pos': 0, 'neu': 0, 'neg': 0, 'child': [],'type':'sentence'}
+            node = {'name': sentence, 'id': id, 'pos': 0, 'neu': 0, 'neg': 0, 'child': [], 'type': 'sentence'}
             neg_node['child'].append(node)
+        neg_node['child'] = random.sample(neg_node['child'], min(sample_num, len(neg_node['child'])))
         attr_node['child'].append(pos_node)
         attr_node['child'].append(neu_node)
         attr_node['child'].append(neg_node)
         root['child'].append(attr_node)
     return root
+
+
+class AnalysisForm(FlaskForm):
+    text = TextAreaField('请输入待分析的单条评论：')
+    submit_text = SubmitField('提交')
+
+    file = FileField('请上传待分析的批量评论文件：')
+    submit_file = SubmitField('提交')
+
 
 class TrainingForm(FlaskForm):
     text = TextAreaField('请输入待分析的文本：')
@@ -159,7 +402,7 @@ def read_opinion_file(file_path):
     try:
         all_lines = opinion_file.readlines()
         opinion_pair = []
-        polarity = 1
+        polarity = 2
         for line in all_lines:
             pair = line.split()
             polarity = polarity % 3 - 1
@@ -286,7 +529,7 @@ def multi_analysis_function(multi_review_path):
 
 
 def multi_analysis_result(entity_pair):
-    global ent_attr_polar,ent_attr_text,ent_polar
+    global ent_attr_polar, ent_attr_text, ent_polar
     ent_polar = dict()
     ent_text = dict()
     ent_attribute = dict()
@@ -314,9 +557,9 @@ def multi_analysis_result(entity_pair):
         ent_text[ent] = txts
     root = {'name': '汽车', 'id': 1, 'pos': ent_polar['汽车'][0], 'neu': ent_polar['汽车'][1], 'neg': ent_polar['汽车'][2],
             'pos_sentence': ' || '.join(ent_text['汽车'][0]), 'neu_sentence': ' || '.join(ent_text['汽车'][1]),
-            'neg_sentence': ' || '.join(ent_text['汽车'][2]), 'child': []}
+            'neg_sentence': ' || '.join(ent_text['汽车'][2]), 'child': [], 'type': 'entity'}
     id = 1
-    _ = build_tree(entity_pair, root,  ent_text, id)
+    _ = build_tree(entity_pair, root, ent_text, id)
     return root
 
 
@@ -325,13 +568,13 @@ def build_tree(entity_pair, node, ent_text, id):
     for parent, child, level in entity_pair:
         if parent == node['name']:
             id = id + 1
-            ent_polar.setdefault(child,[0,0,0])
-            ent_text.setdefault(child,[[],[],[]])
+            ent_polar.setdefault(child, [0, 0, 0])
+            ent_text.setdefault(child, [[], [], []])
             new_node = {'name': child, 'id': id, 'pos': ent_polar[child][0], 'neu': ent_polar[child][1],
                         'neg': ent_polar[child][2],
                         'pos_sentence': ' || '.join(ent_text[child][0]),
                         'neu_sentence': ' || '.join(ent_text[child][1]),
-                        'neg_sentence': ' || '.join(ent_text[child][2]), 'child': []}
+                        'neg_sentence': ' || '.join(ent_text[child][2]), 'child': [], 'type': 'entity'}
             node['child'].append(new_node)
             id = build_tree(entity_pair, new_node, ent_text, id)
     return id
@@ -399,7 +642,6 @@ def homepage():
     show_aspect_graph = False
     multi_analysis = None
     global profile_tree
-    global upload_file_name
     entity_pair, entity_level = read_aspect_file('./KnowledgeBase/whole-part.txt')
     entity_attr, _ = read_aspect_file('./KnowledgeBase/entity-attribute.txt', entity_level)
     entity_synonym, _ = read_aspect_file('./KnowledgeBase/entity-synonym.txt', entity_level)
@@ -408,8 +650,9 @@ def homepage():
     if form.is_submitted():
         if form.submit_text.data:
             input_text = form.text.data
-            sentiments, single_pairs = analysis_comment(text=input_text, debug=True, use_nn=use_nn, init_data=init_data)
+            sentiments, single_pairs = analysis_comment(text=input_text, debug=True, use_nn=use_nn, **init_data)
             # result_list = [sentiments]
+            single_pairs = list(set([tuple(t) for t in single_pairs]))
             for ent, attr, describ, polar, text in single_pairs:
                 print(ent + ' ' + attr + ' ' + describ + ' ' + str(polar) + ' ' + text)
             show_aspect_graph = False
@@ -420,14 +663,17 @@ def homepage():
                 filename = texts.save(form.file.data)
                 file_url = texts.url(filename)
                 print(file_url)
-                global ent_attr_polar,ent_attr_text
+                global ent_attr_polar, ent_attr_text
+                gl.set_value('STATE', 'busy')
                 ent_attr_polar, ent_attr_text, download_filepath = gen_summary(filename=filename, use_nn=use_nn,
                                                                                init_data=init_data)
-                profile_tree=multi_analysis_result(entity_pair)
+                profile_tree = multi_analysis_result(entity_pair)
                 download_filepath = 'downloads/' + download_filepath
-                upload_file_name=filename
-                file = open('static/result_json/' + upload_file_name + '.js', 'wb')
-                file.write(('var data=new Array();\ndata[\'全部\']=\''+json.dumps(profile_tree)+'\';').replace('\\"','\\\\"').encode('utf-8'))
+                gl.set_value('UPLOAD_FILE_PATH', filename)
+                file = open('static/result_json/' + filename + '.js', 'wb')
+                file.write(('var data=new Array();\ndata[\'全部\']=\'' + json.dumps(profile_tree) + '\';').replace('\\"',
+                                                                                                                 '\\\\"').encode(
+                    'utf-8'))
                 file.close()
                 # menu(profile_tree)
                 # return send_from_directory('static', 'downloads/' + download_filepath)
@@ -488,7 +734,6 @@ def homepage():
             #         attr_synonym, _ = read_aspect_file(UPLOAD_FOLDER + '/' + filenames[0])
             #     except UploadNotAllowed :
             #             print('上传文件有误！')
-
     return render_template('testForm.html', form=form,
                            input_text=input_text,
                            input_text1=input_text1,
@@ -507,13 +752,6 @@ def homepage():
                            entity_profile=entity_profile,
                            multi_analysis=multi_analysis,
                            profile_tree=profile_tree)
-    # return render_template('sentimentForm.html', form=form,
-    #                        input_text=input_text,
-    #                        result_list=result_list,
-    #                        filename=filename,
-    #                        upload_error=upload_error,
-    #                        download_filepath=download_filepath,
-    #                        table=table)
 
 
 if __name__ == '__main__':

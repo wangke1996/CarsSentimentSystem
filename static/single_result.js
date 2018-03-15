@@ -25,8 +25,8 @@ function single_result(links_single_result){
 
 	});
 
-	var width = 1500,
-		height = 1000;
+	var width = 1000,
+		height = 750;
 
 	var force = d3.layout.force()
 		.nodes(d3.values(nodes))
@@ -37,7 +37,8 @@ function single_result(links_single_result){
 		.on("tick", tick)
 		.start();
 
-	var svg = d3.select("body").append("svg")
+	var svg = d3.select("#single_box")//.select("body")
+		.append("svg")
 		.attr("id","svg1")
 		.attr("width", width)
 		.attr("height", height);
