@@ -162,11 +162,11 @@ def knowledge_graph():
             continue
         type=None
         if polar==1:
-            type='positive description'
+            type='positive describe'
         elif polar==-1:
-            type='negative description'
+            type='negative describe'
         else:
-            type='neutral description'
+            type='neutral describe'
         links['attribute_opinion'].append({'source': attribute,'target':opinion,'type':'is a '+type+' of','source_level':attribute_level,'target_level':opinion_level})
         if nodes.get(opinion,None) is None:
             nodes[opinion]={'name':opinion,'type':type,'level':opinion_level}
@@ -210,7 +210,7 @@ def kb_build_attr_opnion(attr_opinion, attr_name):
     for attr, opinion, polar in attr_opinion:
         if attr != attr_name:
             continue
-        id = id + 1;
+        id = id + 1
         if polar == 1:
             pos_node['child'].append({'name': opinion, 'child': [], 'id': id, 'type': 'opinion', 'polar': 1})
         elif polar == -1:
