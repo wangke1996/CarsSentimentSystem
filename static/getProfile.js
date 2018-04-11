@@ -18,25 +18,6 @@ function getProfile(menu_id, ent,upload_file_name) {
                     title.innerHTML = "产品画像";
                 else
                     title.innerHTML = "细节画像——" + ent;
-                // var div = document.getElementById('result_script');
-                // div.innerHTML='<script type="text/javascript" src="static/json2.js"></script>\n<script type="text/javascript" src="static/result_json/'+upload_file_name+'.js" charset="utf-8"></script>\n<script type="text/javascript" src="static/result_json/'+upload_file_name+'_'+ ent +'.js" charset="utf-8"></script>';
-                //div.innerHTML = '<script type="text/javascript" src="static/json2.js"></script>\n<script type="text/javascript" src="static/result_json/{{ upload_file_name }}.js" charset="utf-8"></script>\n<script type="text/javascript" src="static/result_json/{{ upload_file_name }}_' + ent + '.js" charset="utf-8"></script>\n<script type="text/javascript">productProfileInit("'+menu_id+'","'+ent+'")</script>';
-
-                // var new_element=document.createElement("script");
-                // new_element.setAttribute("type","text/javascript");
-                // new_element.setAttribute("src","static/json2.js");
-                // new_element.setAttribute("charset","utf-8");
-                // document.body.appendChild(new_element);
-                // var new_element1=document.createElement("script");
-                // new_element1.setAttribute("type","text/javascript");
-                // new_element1.setAttribute("src","static/result_json/"+upload_file_name+".js");
-                // new_element1.setAttribute("charset","utf-8");
-                // document.body.appendChild(new_element1);
-
-                // document.write('<script type="text/javascript" src="static/json2.js"></script>');
-                // document.write('<script type="text/javascript" src="static/result_json/'+upload_file_name+'.js" charset="utf-8"></script>');
-                // document.write('<script type="text/javascript" src="static/result_json/'+upload_file_name+'_'+ ent +'.js" charset="utf-8"></script>');
-                // document.close();
                 loadJS('static/result_json/'+upload_file_name+'.js');
                 loadJS('static/result_json/'+upload_file_name+'_'+ ent +'.js');
                 productProfileInit(menu_id, ent,upload_file_name);

@@ -23,7 +23,7 @@ try:
     import cPickle as pickle
 except ImportError:
     import pickle
-
+test_comment = "备胎简直太差了"
 _LTP_DATA_DIR = r'./ltp_data'
 # _LTP_DATA_DIR = r'C:\Users\yuanz\datasets\ltp_data'
 _DEFAULT_ENTITY = 'DEFAULT_ENTITY'  # 用于加载sentiment lexicon，通用情感词的默认搭配填充
@@ -126,6 +126,31 @@ class entity(object):
             self.normal_num = self.normal_num + x.normal_num
             self.notsure_num = self.notsure_num + x.notsure_num
 
+    def if_va_son(self, va, va2attributes):
+        for x in self.sons:
+            for y in x.attributes:
+                if va2attributes.setdefault((y.name, va), None) != None:
+                    return [x.name, y.name]
+        for x in self.sons:
+            [a, b] = x.if_va_son(va, va2attributes)
+            if b != None:
+                return [a, b]
+        return [self.name, None]
+
+    def if_va_father(self, va, va2attributes):
+        if self.father != None:
+            for y in self.father.attributes:
+
+                if va2attributes.setdefault((y.name, va), None) != None:
+                    return [self.father.name, y.name]
+            [a, b] = self.father.if_va_father(va, va2attributes)
+            if b != None:
+                return [a, b]
+            else:
+                return [self.name, None]
+        else:
+            return [self.name, None]
+
 
 class attribute(object):
     # 属性类
@@ -164,6 +189,7 @@ def load_enititiy(whole_part_path, entitiy_synonym_path):
         for line in fr:
             line = line.strip('\n')
             line = line.strip('\t')
+            line = line.strip('\r')
             line = line.split('\t')
             if len(line) != 1:
                 line1 = line[1]
@@ -214,6 +240,8 @@ def load_attribute(attribute_description_path, attribute_synonym_path, entity_at
             name = line[0]
             if len(line) > 1:
                 words = line[1].split(' ')
+                if name == r'整体性':
+                    name=name
                 for word in words:
                     va2attributes[name, word] = 1 - (num % 3)
             num = num + 1
@@ -259,10 +287,11 @@ def clean_text(text):
     text = text.replace(r'\n', ' ')
     text = text.replace(r'&hellip;', ' ')
     text = re.sub(r'\.{2,}', '，', text)  # many dots to comma
-    text = re.sub(r'[1-9一二三四五六七八九]、', ' ', text)
+    text = re.sub(r'[1-9二三四五六七八九]、', ' ', text)
     text = re.sub(r' +', r' ', text)  # many spaces to one
     text = re.sub(r'不(是很|太)', r'不', text)
     text = re.sub(r'没(有)?想象(中)?(的)?', r'不', text)
+    text = re.sub(r'简直', r'', text)
     # 去掉语句中的语气前缀词语，如“非常非常非常非常好看” -> “好看”
     for word in set(PREFIX_STOPWORDS):
         if text.startswith(word):
@@ -287,7 +316,8 @@ def _domain_specific_clean(text):
 
 def split_sentences(text):
     """文本拆分为单句。后续分析时按照单句处理"""
-    sents = re.split(u'[，。！!？?~～：:；;…=\s\n]',text)
+    '''，。！!？?~～：:；;…=\s\n'''
+    sents = re.split(u'[‚.，。！!？?~～：:；;…=\s\n]', text)
     sents = [sent.strip() for sent in sents if len(sent.strip()) > 0]
     return sents
 
@@ -354,7 +384,14 @@ def grammar_analysis(text, entities, term2entity, va2attributes, term2attributes
         sorted_unique_words.update(sorted_unique_words_entities)
         sorted_unique_words.update(sorted_unique_words_attributes)
         sorted_unique_words.update(sorted_unique_words_va)
-
+        sorted_unique_words = list(sorted_unique_words)
+        sorted_unique_words.sort(key=len, reverse=True)  # 按长度排序，优先匹配较长的单词
+        for idx, word in enumerate(sorted_unique_words):
+            if re.match(r'不', word, flags=0):
+                sorted_unique_words.remove(word)
+                sorted_unique_words.append(word)
+    if 'q' in enumerate(sorted_unique_words):
+        print('q in sort')
     for idx, word in enumerate(sorted_unique_words):
         if word in text:
             id2word[UNIQUE + '%d' % idx] = word
@@ -463,6 +500,7 @@ def sentiment_analysis(text, words, postags, arcs,
     got_score = False
 
     for parc in parcs:
+        # print(parc[0],parc[1][1],parc[2][1])
         this_entity_name = None
         this_entity_num = None
         this_attribute_name = None
@@ -494,7 +532,7 @@ def sentiment_analysis(text, words, postags, arcs,
                 this_entity_num = parc[2][0]
                 this_va = parc[1][1]
                 this_va_num = parc[1][0]
-                this_attribute_name = '整体'
+                this_attribute_name = None#'整体'
                 got_score = True
         # 修饰关系(定中)
         if (parc[0] == 'ATT' or \
@@ -516,7 +554,7 @@ def sentiment_analysis(text, words, postags, arcs,
                 this_entity_num = parc[1][0]
                 this_va = parc[2][1]
                 this_va_num = parc[2][0]
-                this_attribute_name = '整体'
+                this_attribute_name = None#'整体'
                 got_score = True
 
         if parc[0] == 'ATT' and \
@@ -564,10 +602,10 @@ def sentiment_analysis(text, words, postags, arcs,
                                 this_entity_name = x.name
                                 unique_num = unique_num + 1
                                 got_entity_name = True
-                    # 仅有1entity有此attribute则将其视为当attributee
-                    # if (unique_num > 1):
-                    #     this_entity_name = None
-                    #     got_entity_name = False
+                    # 仅有1entity有此attibute则将其视为当前attibute
+                    '''if(unique_num > 1):
+                        this_entity_name = None
+                        ot_entity_name = False'''
                 # if got_entity_name == True:
                 #     print("got entity name:", this_entity_name)
 
@@ -586,14 +624,30 @@ def sentiment_analysis(text, words, postags, arcs,
                             this_attribute_name = x.name
                             unique_num = unique_num + 1
                             got_attribute_name = True
-                    # if (unique_num > 1):
-                        # this_attribute_name = None
-                        # got_attribute_name = False
-                        # got_attribute_name = True
-                # if got_attribute_name == True:
-                #     print("got attribute name:", this_attribute_name)
-                if got_attribute_name is False:
-                    this_attribute_name = "整体"
+                    '''if (unique_num > 1):
+                        this_attribute_name = None
+                        got_attribute_name = False'''
+                if got_attribute_name is True:
+                    pass;#print("got attribute name:", this_attribute_name)
+                else:
+                    '''遍历子节点'''
+                    [this_entity_name, this_attribute_name] = _get_entity(this_entity_name).if_va_father(this_va,
+                                                                                                         va2attributes)
+                    if this_attribute_name == None:
+                        '''遍历父节点'''
+                        [this_entity_name, this_attribute_name] = _get_entity(this_entity_name).if_va_son(this_va,
+                                                                                                          va2attributes)
+                        if this_attribute_name == None:
+                            '''danger!!! 遍历填充'''
+                            for x in entities:
+                                for y in x.attributes:
+                                    if _get_score(y.name, this_va) != None:
+                                        "danger!!! changing the entity"
+                                        this_entity_name = x.name
+                                        this_attribute_name = y.name
+                                        # unique_num = unique_num + 1
+                                        got_attribute_name = True
+
             "根据eneity，attibute获得score"
             this_entity = _get_entity(this_entity_name)
             this_attribute = _get_attribute(this_entity, this_attribute_name)
@@ -602,13 +656,13 @@ def sentiment_analysis(text, words, postags, arcs,
             "TBD 有entity or attribute 但va不匹配"
             # 否定score取反
             if score != None:
-                score = score * (-1 if this_va_num in negation_logs else 1)
+                if this_va_num in negation_logs:
+                    score = score * -1;
+                    this_va = negation_logs.get(this_va_num)
+                #score = score * (-1 if this_va_num in negation_logs else 1)
             try:
                 # print('Get entity ', this_entity.name, '\tattribute ', this_attribute.name, '\tva ', this_va, '\tscore ', score)
                 result_list.append([this_entity.name,this_attribute.name,this_va,score,text])
-
-
-                # 更新entity树
                 if score == 1:
                     this_attribute.good_comments.add(this_va)
                     this_attribute.good_num = this_attribute.good_num + 1
@@ -656,7 +710,7 @@ def entities2sentiments_group(entities):
 
 
 def analysis_comment(text,
-                     debug=False, file=sys.stdout, apiapi_debug=False, use_nn=True,**init_data):
+                     debug=False, file=sys.stdout, api_debug=False, use_nn=True,**init_data):
     """处理单条评论的api接口
     处理流程：
         - 预处理
@@ -695,7 +749,6 @@ def analysis_comment(text,
 if __name__ == '__main__':
     use_nn = False
     init_data = init(use_nn=use_nn)
-    sentiments = analysis_comment("车的性能很不错， 价位对我来说能接受。外观看来很漂亮，又不失年轻活力的动感！内部空间不是很大", debug=True, file=None,
-                                  use_nn=use_nn, init_data=init_data)
+    sentiments = analysis_comment(test_comment, debug=True, file=None, use_nn=use_nn, init_data=init_data)
     for x in sentiments:
         print(x[0], x[1], x[2], x[3], x[4])

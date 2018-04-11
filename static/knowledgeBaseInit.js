@@ -29,6 +29,7 @@ function knowledgeBaseInit(menu_id){
     if(menu_id=='menu_attribute_synonym'){
         tree=JSON.parse(unescapeHTML(attr_synonym));
     }
+    document.getElementById(menu_id+'_0').innerHTML='';
     addElements_innerhtml_attr(tree,"0");
     function addElements_innerhtml_attr(node,id){
         var ul_parent = document.getElementById(menu_id+'_'+id);

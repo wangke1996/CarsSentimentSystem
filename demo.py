@@ -9,6 +9,21 @@ import imp
 import json
 import random
 import global_var as gl
+import matplotlib.pyplot as plt
+import jieba
+from PIL import Image
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+
+# width,height,margin可以设置图片属性
+
+# generate 可以对全部文本进行自动分词,但是他对中文支持不好,对中文的分词处理请看我的下一篇文章
+# wordcloud = WordCloud(font_path = r'D:\Fonts\simkai.ttf').generate(f)
+# 你可以通过font_path参数来设置字体集
+
+# background_color参数为设置背景颜色,默认颜色为黑色
+
+
+
 
 gl._init()
 gl.set_value('PROGRESS', 0)  # 后端分析进度百分比
@@ -60,6 +75,30 @@ ent_attr_text = None
 ent_polar = None
 
 
+def word_cloud_generate(upload_file_name, in_img_path=u'static/images/car.jpg',  font_path=r'static/fonts/wrjwb.ttf'):
+    in_text_path = u'uploads/' + upload_file_name
+    out_img_path = u'static/result_wordCloud/' + upload_file_name + '.png'
+    f = open(in_text_path, 'r', encoding='utf8').read()
+    coloring = np.array(Image.open(in_img_path))
+
+    stopwords = set(STOPWORDS)
+    stopwords.update(
+        ["没有", "感觉", "可以", "现在", "公里", "就是", "比较", "应该", "大家", "左右", "居然", "不是", "还是", "不过", "空间", "一次", "什么", "不到",
+         "那个", "东西", "这个", "一下", "这么", "怎么", "一直", "时候", "时间", "次", "之后", "店", "眼", "问题", "毛病", "地方", "原因", "感受", "现象",
+         "事", "上", "下", "范围", "朋友", "缺点", "优点", "车友", "车主", "第一", "一点", "水平", "程度"])
+
+    wordlist = jieba.cut(f, cut_all=True)
+    wordlist = " ".join(wordlist)
+    wordcloud = WordCloud(background_color="white", font_path=font_path, mask=coloring, stopwords=stopwords, width=1000,
+                          height=860, margin=2).generate(wordlist)
+    # image_colors = ImageColorGenerator(coloring)
+    # plt.imshow(wordcloud, interpolation="bilinear")
+    # plt.axis("off")
+    # plt.show()
+
+    wordcloud.to_file(out_img_path)
+
+
 def knowledge_base_init():
     entity_pair, entity_level = read_aspect_file('./KnowledgeBase/whole-part.txt')
     entity_attr, _ = read_aspect_file('./KnowledgeBase/entity-attribute.txt', entity_level)
@@ -75,6 +114,68 @@ def knowledge_base_init():
     gl.set_value('ATTRIBUTE_SYNONYM', attr_synonym)
     gl.set_value('OPINION_PAIR', opinion_pair)
     gl.set_value('ENTITY_TREE', entity_tree)
+
+def knowledge_graph():
+    subset={'汽车','发动机','底盘','车身','电气设备','进气系统','排气系统','燃料供给系统','整体','质量','油耗','动力','性能','好','高','不错','强劲','适中','中庸','粗糙','差','微弱'}
+    links={'entity_entity':[],'entity_attribute':[],'entity_synonym':[],'attribute_synonym':[],'attribute_opinion':[]}
+    nodes=dict()
+    attribute_level=5
+    opinion_level=6
+    # entity-entity
+    entity_pair=gl.get_value('ENTITY_PAIR',None)
+    if entity_pair is None:
+        knowledge_base_init()
+        entity_pair=gl.get_value('ENTITY_PAIR')
+    for parent,child,parent_level in entity_pair:
+        if parent not in subset or child not in subset:
+            continue
+        links['entity_entity'].append({'source':parent,'target':child,'type':'is part of','source_level':parent_level,'target_level':parent_level+1})
+        if nodes.get(parent,None) is None:
+            nodes[parent]={'name':parent,'type':'entity','level':parent_level}
+        if nodes.get(child,None) is None:
+            nodes[child]={'name':child,'type':'entity','level':parent_level+1}
+    # entity-attribute
+    entity_attribute=gl.get_value('ENTITY_ATTRIBUTE')
+    for entity,attribute,_ in entity_attribute:
+        if entity not in subset or attribute not in subset:
+            continue
+        links['entity_attribute'].append({'source':entity,'target':attribute,'type':'is an attribute of','source_level':nodes[entity]['level'],'target_level':attribute_level})
+        if nodes.get(attribute,None) is None:
+            nodes[attribute]={'name':attribute,'type':'attribute','level':attribute_level}
+    # entity-synonym
+    entity_synonym=gl.get_value('ENTITY_SYNONYM')
+    for entity, synonym, _ in entity_synonym:
+        if entity in subset and nodes.get(synonym, None) is None:
+            entity_level=nodes[entity]['level']
+            links['entity_synonym'].append({'source':entity,'target':synonym,'type':'is the same as','source_level':entity_level,'target_level':entity_level+1})
+            nodes[synonym]={'name':synonym,'type':'entity_synonym','level':entity_level+1}
+    # attribute-synonym
+    attribute_synonym=gl.get_value('ATTRIBUTE_SYNONYM')
+    for attribute, synonym, _ in attribute_synonym:
+        if attribute in subset and nodes.get(synonym, None) is None:
+            links['attribute_synonym'].append({'source':attribute,'target':synonym,'type':'is the same as','source_level':attribute_level,'target_level':attribute_level+1})
+            nodes[synonym]={'name':synonym,'type':'attribute_synonym','level':attribute_level+1}
+    # attribute-opinion
+    opinion_pair=gl.get_value('OPINION_PAIR')
+    for attribute, opinion, polar in opinion_pair:
+        if attribute not in subset or opinion not in subset:
+            continue
+        type=None
+        if polar==1:
+            type='positive description'
+        elif polar==-1:
+            type='negative description'
+        else:
+            type='neutral description'
+        links['attribute_opinion'].append({'source': attribute,'target':opinion,'type':'is a '+type+' of','source_level':attribute_level,'target_level':opinion_level})
+        if nodes.get(opinion,None) is None:
+            nodes[opinion]={'name':opinion,'type':type,'level':opinion_level}
+    gl.set_value('KNOWLEDGE_GRAPH_LINKS',links)
+    gl.set_value('KNOWLEDGE_GRAPH_NODES',nodes)
+    #if not os.path.exists('static/kb_json/part_of_knowledgebase.js'):
+    file = open('static/kb_json/part_of_knowledgebase.js', 'wb')
+    file.write(('links_kb_subset=\'' + json.dumps(links) + '\';\nnodes_kb_subset=\'' + json.dumps(nodes) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+    file.close()
 
 
 def kb_build_entity(node, entity_pair, id):
@@ -134,16 +235,19 @@ def contact():
 
 @app.route('/introduction', methods=['GET', 'POST'])
 def introduction():
+    #if not os.path.exists('static/kb_json/part_of_knowledgebase.js'):
+    knowledge_graph()
     return render_template('introduction.html')
+
 
 @app.route('/knowledge_base', methods=['GET', 'POST'])
 def kb_graph():
     ent = request.args.get('entity')
     attr = request.args.get('attribute')
     if ent is None:
-        ent='0'
+        ent = '0'
     if attr is None:
-        attr='0'
+        attr = '0'
     entity_tree = gl.get_value('ENTITY_TREE', None)
     if entity_tree is None:
         knowledge_base_init()
@@ -164,8 +268,8 @@ def kb_graph():
         ent = None
     if attr != '0':
         if not os.path.exists('static/kb_json/' + attr + '.js'):
-            attr_opinion = kb_build_attr_opnion(gl.get_value('OPINION_PAIR'),attr)
-            attr_synonym=kb_build_level2(gl.get_value('ATTRIBUTE_SYNONYM'),attr,'attribute','attribute_synonym')
+            attr_opinion = kb_build_attr_opnion(gl.get_value('OPINION_PAIR'), attr)
+            attr_synonym = kb_build_level2(gl.get_value('ATTRIBUTE_SYNONYM'), attr, 'attribute', 'attribute_synonym')
             file = open('static/kb_json/' + attr + '.js', 'wb')
             file.write(('attr_opinion=\'' + json.dumps(attr_opinion) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
             file.write(('attr_synonym=\'' + json.dumps(attr_synonym) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
@@ -177,16 +281,16 @@ def kb_graph():
 
 @app.route('/getProfile', methods=['GET', 'POST'])
 def get_profile():
-    ent=request.args.get('ent')
+    ent = request.args.get('ent')
     if ent is None:
         return 'Get a None entity!'
-    if ent !='全部':
+    if ent != '全部':
         ent_detail = build_attr_tree(ent, 15)
         file = open('static/result_json/' + gl.get_value('UPLOAD_FILE_PATH', None) + '_' + ent + '.js', 'wb')
         file.write(
             ('data[\'' + ent + '\']=\'' + json.dumps(ent_detail) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
         file.close()
-    gl.set_value('STATE','free')
+    gl.set_value('STATE', 'free')
     return 'succeed'
 
 
@@ -231,15 +335,16 @@ def analysis():
         elif form.submit_file.data:
             try:
                 filename = texts.save(form.file.data)
+                gl.set_value('UPLOAD_FILE_PATH', filename)
                 file_url = texts.url(filename)
                 print(file_url)
                 global ent_attr_polar, ent_attr_text
                 gl.set_value('STATE', 'busy')
                 ent_attr_polar, ent_attr_text, download_filepath = gen_summary(filename=filename, use_nn=use_nn,
                                                                                init_data=init_data)
+                word_cloud_generate(filename)
                 profile_tree = multi_analysis_result(entity_pair)
                 gl.set_value('DOWNLOAD_FILE_PATH', 'downloads/' + download_filepath)
-                gl.set_value('UPLOAD_FILE_PATH', filename)
                 file = open('static/result_json/' + filename + '.js', 'wb')
                 file.write(('var data=new Array();\ndata[\'全部\']=\'' + json.dumps(profile_tree) + '\';').replace('\\"',
                                                                                                                  '\\\\"').encode(
@@ -311,24 +416,24 @@ def build_attr_tree(ent, sample_num):
                     'neu': ent_attr_polar[ent_attr][1], 'neg': ent_attr_polar[ent_attr][2], 'child': [],
                     'type': 'sentiment_node'}
         id = id + 4
-        pos_sentence = ent_attr_text[ent_attr][0]
+        pos_sentence = random.sample(ent_attr_text[ent_attr][0], min(sample_num, len(ent_attr_text[ent_attr][0])))
         for sentence in pos_sentence:
             id = id + 1
             node = {'name': sentence, 'id': id, 'pos': 0, 'neu': 0, 'neg': 0, 'child': [], 'type': 'sentence'}
             pos_node['child'].append(node)
-        pos_node['child'] = random.sample(pos_node['child'], min(sample_num, len(pos_node['child'])))
-        neu_sentence = ent_attr_text[ent_attr][1]
+        # pos_node['child'] = random.sample(pos_node['child'], min(sample_num, len(pos_node['child'])))
+        neu_sentence = random.sample(ent_attr_text[ent_attr][1], min(sample_num, len(ent_attr_text[ent_attr][1])))
         for sentence in neu_sentence:
             id = id + 1
             node = {'name': sentence, 'id': id, 'pos': 0, 'neu': 0, 'neg': 0, 'child': [], 'type': 'sentence'}
             neu_node['child'].append(node)
-        neu_node['child'] = random.sample(neu_node['child'], min(sample_num, len(neu_node['child'])))
-        neg_sentence = ent_attr_text[ent_attr][2]
+        # neu_node['child'] = random.sample(neu_node['child'], min(sample_num, len(neu_node['child'])))
+        neg_sentence = random.sample(ent_attr_text[ent_attr][2], min(sample_num, len(ent_attr_text[ent_attr][2])))
         for sentence in neg_sentence:
             id = id + 1
             node = {'name': sentence, 'id': id, 'pos': 0, 'neu': 0, 'neg': 0, 'child': [], 'type': 'sentence'}
             neg_node['child'].append(node)
-        neg_node['child'] = random.sample(neg_node['child'], min(sample_num, len(neg_node['child'])))
+        # neg_node['child'] = random.sample(neg_node['child'], min(sample_num, len(neg_node['child'])))
         attr_node['child'].append(pos_node)
         attr_node['child'].append(neu_node)
         attr_node['child'].append(neg_node)

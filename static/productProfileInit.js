@@ -1,6 +1,7 @@
 function productProfileInit(menu_id,ent,upload_file_name){
     var tree;
     tree = JSON.parse(unescapeHTML(data[ent]));
+    document.getElementById(menu_id+'_0').innerHTML='';
     addElements_innerhtml_attr(tree,"0");
     function addElements_innerhtml_attr(node,id){
         var ul_parent = document.getElementById(menu_id+'_'+id);

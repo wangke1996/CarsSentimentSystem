@@ -13,6 +13,8 @@
 		<script src="{{ url_for('static',filename='js/skel.min.js') }}"></script>
 		<script src="{{ url_for('static',filename='js/skel-layers.min.js') }}"></script>
 		<script src="{{ url_for('static',filename='js/init.js') }}"></script>
+		<script src="static/knowledgeGraph_subset.js"></script>
+		<script src="static/d3.js"></script>
 		<noscript>
 			<link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='css/skel.css') }}" />
 			<link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='css/style.css') }}" />
@@ -66,7 +68,24 @@
 
 		<!-- Main -->
 			<section id="main" class="container">
-		
+				<section class="box special">
+				<header class="major">
+					<h2>系统介绍</h2>
+					<p>关于本评论解析系统所使用的方法和原理的简要介绍</p>
+				</header>
+				</section>
+				<div class="box" id="introduction">
+					<h3>简介</h3>
+					<li>这是一个利用<em>知识图谱</em>作为辅助的汽车评论文本自动解析系统，旨在对非格式化的自由评论文本进行<em>细粒度</em>情感分析，并通过对批量文本的解析得到某款汽车的产品画像。</li>
+                    <li>单条评论的解析中，将体现评论者对提及的实体属性的情感倾向（正向、中性、负向）。</li>
+                    <li>批量评的论解析中，将展示所有评论者对产品的各个实体属性的情感倾向分布</li>
+                    <hr/>
+					<ul class="actions">
+						<li><a href="#start" class="button special">开始使用</a></li>
+						<li><a href="/introduction" class="button">了解更多</a></li>
+					</ul>
+				</div>
+				<br />
 				<section class="box special">
 					<header class="major" id="start">
 						<h2>系统功能导航</h2>
@@ -99,7 +118,7 @@
 						<section>
 							<span class="icon major fa-lock accent5"></span>
 							<h3><a href="/analysis#batch">批量评论解析</a></h3>
-		<p>上传包含批量评论的文本以构建产品画像</p>
+						<p>上传包含批量评论的文本以构建产品画像</p>
 						</section>
 					</div>
 				</section><div class="copyrights">Collect from <a href="http://www.cssmoban.com/" >企业网站模板</a></div>

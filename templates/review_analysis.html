@@ -173,6 +173,7 @@
 							<!--<script type="text/javascript" src="/static/getProfile.js"></script>-->
                             <a href="{{ url_for('static', filename=download_filepath) }}">下载分析结果</a>
 							<a href="#menu_all" onclick='getProfile("menu_all","全部","{{ upload_file_name }}")'>分析结果视图</a>
+							<span class="image fit"><img src="static/result_wordCloud/{{ upload_file_name }}.png" alt="" /></span>
 							<!--<script type="text/javascript" src="/static/productProfileInit.js"></script>-->
                         {% endif %}
                         &nbsp;

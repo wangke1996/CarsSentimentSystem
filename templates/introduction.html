@@ -13,6 +13,8 @@
 		<script src="static/js/skel.min.js"></script>
 		<script src="static/js/skel-layers.min.js"></script>
 		<script src="static/js/init.js"></script>
+		<script src="static/knowledgeGraph_subset.js"></script>
+		<script src="static/d3.js"></script>
 		<noscript>
 			<link rel="stylesheet" href="static/css/skel.css" />
 			<link rel="stylesheet" href="static/css/style.css" />
@@ -82,6 +84,9 @@
                                 <li>本体知识库给出了评论文本中实体或是属性常见的同义词，以避免对同一实体或属性的描述被区别对待，保障产品画像的准确性。</li>
                             </div>
 						</div>
+					</div>
+					<div id="Knowledge_Graph_Demo">
+						<script type="text/javascript">knowledgeGraph_subset();</script>
 					</div>
 				</div>
 			</section>
