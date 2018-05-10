@@ -6,21 +6,31 @@
 		<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 		<meta name="description" content="" />
 		<meta name="keywords" content="" />
-		<!--[if lte IE 8]><script src="static/css/ie/html5shiv.js"></script><![endif]-->
-		<script src="static/js/jquery.min.js"></script>
-		<script src="static/js/jquery.dropotron.min.js"></script>
-		<script src="static/js/jquery.scrollgress.min.js"></script>
-		<script src="static/js/skel.min.js"></script>
-		<script src="static/js/skel-layers.min.js"></script>
-		<script src="static/js/init.js"></script>
-		<script src="static/knowledgeGraph_subset.js"></script>
-		<script src="static/d3.js"></script>
+		<!--[if lte IE 8]><script src="static/WebTemplate/css/ie/html5shiv.js"></script><![endif]-->
+		<script src="static/WebTemplate/js/jquery.min.js"></script>
+		<script src="static/WebTemplate/js/jquery.dropotron.min.js"></script>
+		<script src="static/WebTemplate/js/jquery.scrollgress.min.js"></script>
+		<script src="static/WebTemplate/js/skel.min.js"></script>
+		<script src="static/WebTemplate/js/skel-layers.min.js"></script>
+		<script src="static/WebTemplate/js/init.js"></script>
+		<script src="static/js/myjs/knowledgeGraph_subset.js"></script>
+		<script src="static/js/myjs/getValue.js"></script>
+		<script src="static/js/myjs/changeProduct.js"></script>
+		<script src="static/js/thirdparty/d3.js"></script>
 		<noscript>
-			<link rel="stylesheet" href="static/css/skel.css" />
-			<link rel="stylesheet" href="static/css/style.css" />
-			<link rel="stylesheet" href="static/css/style-wide.css" />
+			<link rel="stylesheet" href="static/WebTemplate/css/skel.css" />
+			<link rel="stylesheet" href="static/WebTemplate/css/style.css" />
+			<link rel="stylesheet" href="static/WebTemplate/css/style-wide.css" />
 		</noscript>
-		<!--[if lte IE 8]><link rel="stylesheet" href="static/css/ie/v8.css" /><![endif]-->
+		<!--[if lte IE 8]><link rel="stylesheet" href="static/WebTemplate/css/ie/v8.css" /><![endif]-->
+		<style type="text/css">
+			div.scroll{
+				background-color: #FFFFFF;
+				width: 1000px;
+				height:750px;
+				overflow: auto;
+			}
+		</style>
 	</head>
 	<body>
 
@@ -62,9 +72,9 @@
 					<p>关于本评论解析系统所使用的方法和原理的简要介绍</p>
 				</header>
 				<div class="box">
-					<span class="image featured"><img src="static/images/pic01.jpg" alt="" /></span>
+					<span class="image featured"><img src="static/WebTemplate/images/pic01.jpg" alt="" /></span>
 					<h3>简介</h3>
-					<li>这是一个利用<em>知识图谱</em>作为辅助的汽车评论文本自动解析系统，旨在对非格式化的自由评论文本进行<em>细粒度</em>情感分析，并通过对批量文本的解析得到某款汽车的产品画像。</li>
+					<li>这是一个利用<em>知识图谱</em>作为辅助的中文评论文本自动解析系统，旨在对非格式化的自由评论文本进行<em>细粒度</em>情感分析，并通过对批量文本的解析得到某款汽车的产品画像。</li>
                     <li>单条评论的解析中，将体现评论者对提及的实体属性的情感倾向（正向、中性、负向）。</li>
                     <li>批量评的论解析中，将展示所有评论者对产品的各个实体属性的情感倾向分布</li>
                     <hr/>
@@ -85,7 +95,18 @@
                             </div>
 						</div>
 					</div>
-					<div id="Knowledge_Graph_Demo">
+					<div class="row uniform half">
+						<div class="12u">
+							<div class="select-wrapper">
+								<select name="category" id="category" onchange="changeProduct(this.options[this.options.selectedIndex].value)">
+									<option value="">- 请选择产品类别 -</option>
+									<option value="汽车">汽车</option>
+									<option value="电子">电子</option>
+								</select>
+							</div>
+						</div>
+					</div>
+					<div id="Knowledge_Graph_Demo" class="scroll">
 						<script type="text/javascript">knowledgeGraph_subset();</script>
 					</div>
 				</div>

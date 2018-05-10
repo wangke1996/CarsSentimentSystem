@@ -39,6 +39,7 @@ from flask_uploads import UploadSet, configure_uploads, TEXT, patch_request_clas
 from wtforms import SubmitField, TextAreaField
 from collections import defaultdict
 from werkzeug.utils import secure_filename
+# from Fine_grained.Src.Fine_grained.FINE_GRAINED import init, analysis_comment
 from fine_grained import init, analysis_comment
 from summary import gen_summary
 # 不显示server输出
@@ -68,14 +69,17 @@ patch_request_class(app)  # 文件大小限制，默认为16MB
 
 use_nn = False
 init_data = init(use_nn=use_nn)
+# init_data=init()
 
 profile_tree = None
 ent_attr_polar = None
 ent_attr_text = None
 ent_polar = None
+ent_polar_include_children = None
 
 
-def word_cloud_generate(upload_file_name, in_img_path=u'static/images/car.jpg',  font_path=r'static/fonts/wrjwb.ttf'):
+def word_cloud_generate(upload_file_name, in_img_path=u'static/WebTemplate/images/car.jpg',
+                        font_path=r'static/WebTemplate/fonts/msyh.ttc'):
     in_text_path = u'uploads/' + upload_file_name
     out_img_path = u'static/result_wordCloud/' + upload_file_name + '.png'
     f = open(in_text_path, 'r', encoding='utf8').read()
@@ -99,13 +103,89 @@ def word_cloud_generate(upload_file_name, in_img_path=u'static/images/car.jpg', 
     wordcloud.to_file(out_img_path)
 
 
+class SimpleGroupedColorFunc(object):
+    """Create a color function object which assigns EXACT colors
+       to certain words based on the color to words mapping
+
+       Parameters
+       ----------
+       color_to_words : dict(str -> list(str))
+         A dictionary that maps a color to the list of words.
+
+       default_color : str
+         Color that will be assigned to a word that's not a member
+         of any value from color_to_words.
+    """
+
+    def __init__(self, color_to_words, default_color):
+        self.word_to_color = {word: color
+                              for (color, words) in color_to_words.items()
+                              for word in words}
+
+        self.default_color = default_color
+
+    def __call__(self, word, **kwargs):
+        return self.word_to_color.get(word, self.default_color)
+
+
+def word_cloud_generate(in_img_path=u'static/WebTemplate/images/car.jpg',
+                        font_path=r'static/WebTemplate/fonts/msyh.ttc'):
+    global ent_polar_include_children
+    word_freq = dict()
+    color2words = dict()
+    for ent, polar_include_children in ent_polar_include_children.items():
+        freq = sum(polar_include_children)
+        if freq == 0:
+            continue
+        word_freq[ent] = freq
+        color = polar2color(polar_include_children)
+        color2words.setdefault(color, [])
+        # color2words[color]=color2words[color].append(ent)
+        color2words[color].append(ent)
+    attr_polar = compute_attr_polar()
+    for attr, polar in attr_polar.items():
+        freq = sum(polar)
+        if freq == 0:
+            continue
+        word_freq[attr] = freq
+        color = polar2color(polar)
+        color2words.setdefault(color, [])
+        color2words[color].append(attr)
+
+    grouped_color_func = SimpleGroupedColorFunc(color2words, default_color='grey')
+
+    out_img_path = u'static/result_wordCloud/' + gl.get_value('UPLOAD_FILE_PATH') + '.png'
+    coloring = np.array(Image.open(in_img_path))
+    wordcloud = WordCloud(background_color="white", font_path=font_path, mask=coloring, width=1000,
+                          height=860, margin=2).generate_from_frequencies(word_freq)
+    wordcloud.recolor(color_func=grouped_color_func)
+    # image_colors = ImageColorGenerator(coloring)
+    # plt.imshow(wordcloud, interpolation="bilinear")
+    # plt.axis("off")
+    # plt.show()
+
+    wordcloud.to_file(out_img_path)
+
+
+def polar2color(polar):
+    pos = polar[0]
+    neg = polar[1]
+    if neg + pos == 0:
+        return '#ffff00'
+    r = neg / (neg + pos)
+    g = pos / (neg + pos)
+    return '#' + hex(int(r * 255))[2:].rjust(2, '0') + hex(int(g * 255))[2:].rjust(2, '0') + '00'
+
+
 def knowledge_base_init():
-    entity_pair, entity_level = read_aspect_file('./KnowledgeBase/whole-part.txt')
-    entity_attr, _ = read_aspect_file('./KnowledgeBase/entity-attribute.txt', entity_level)
-    entity_synonym, _ = read_aspect_file('./KnowledgeBase/entity-synonym.txt', entity_level)
-    attr_synonym, _ = read_aspect_file('./KnowledgeBase/attribute-synonym.txt')
-    opinion_pair = read_opinion_file('./KnowledgeBase/attribute-description.txt')
-    entity_tree = {'name': '汽车', 'child': [], 'id': 1, 'type': 'entity'}
+    product = gl.get_value('PRODUCT', '汽车')
+    entity_pair, entity_level = read_aspect_file('./KnowledgeBase/' + product + '/whole-part.txt')
+    entity_attr, _ = read_aspect_file('./KnowledgeBase/' + product + '/entity-attribute.txt', entity_level)
+    entity_synonym, _ = read_aspect_file('./KnowledgeBase/' + product + '/entity-synonym.txt', entity_level)
+    attr_synonym, _ = read_aspect_file('./KnowledgeBase/' + product + '/attribute-synonym.txt')
+    opinion_pair = read_opinion_file('./KnowledgeBase/' + product + '/attribute-description.txt')
+    subset = read_subset_file('./KnowledgeBase/'+product+'/subset.txt')
+    entity_tree = {'name': product, 'child': [], 'id': 1, 'type': 'entity'}
     kb_build_entity(entity_tree, entity_pair, 1)
     gl.set_value('ENTITY_PAIR', entity_pair)
     gl.set_value('ENTITY_LEVEL', entity_level)
@@ -114,67 +194,91 @@ def knowledge_base_init():
     gl.set_value('ATTRIBUTE_SYNONYM', attr_synonym)
     gl.set_value('OPINION_PAIR', opinion_pair)
     gl.set_value('ENTITY_TREE', entity_tree)
+    gl.set_value('SUBSET', subset)
+
 
 def knowledge_graph():
-    subset={'汽车','发动机','底盘','车身','电气设备','进气系统','排气系统','燃料供给系统','整体','质量','油耗','动力','性能','好','高','不错','强劲','适中','中庸','粗糙','差','微弱'}
-    links={'entity_entity':[],'entity_attribute':[],'entity_synonym':[],'attribute_synonym':[],'attribute_opinion':[]}
-    nodes=dict()
-    attribute_level=5
-    opinion_level=6
+    product=gl.get_value('PRODUCT','汽车')
+    subset=gl.get_value('SUBSET',None)
+    if subset is None:
+        knowledge_base_init()
+        subset=gl.get_value('SUBSET')
+    file = open('static/kb_json/' + product + '/subset.js', 'wb')
+    file.write(
+        ('subset=\'' + json.dumps(subset) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+    file.close()
+    subset_nodes=subset['nodes']
+
+    links = {'entity_entity': [], 'entity_attribute': [], 'entity_synonym': [], 'attribute_synonym': [],
+             'attribute_opinion': []}
+    nodes = dict()
+    attribute_level = 5
+    opinion_level = 6
     # entity-entity
-    entity_pair=gl.get_value('ENTITY_PAIR',None)
+    entity_pair = gl.get_value('ENTITY_PAIR', None)
     if entity_pair is None:
         knowledge_base_init()
-        entity_pair=gl.get_value('ENTITY_PAIR')
-    for parent,child,parent_level in entity_pair:
-        if parent not in subset or child not in subset:
+        entity_pair = gl.get_value('ENTITY_PAIR')
+    for parent, child, parent_level in entity_pair:
+        if parent not in subset_nodes or child not in subset_nodes:
             continue
-        links['entity_entity'].append({'source':parent,'target':child,'type':'is part of','source_level':parent_level,'target_level':parent_level+1})
-        if nodes.get(parent,None) is None:
-            nodes[parent]={'name':parent,'type':'entity','level':parent_level}
-        if nodes.get(child,None) is None:
-            nodes[child]={'name':child,'type':'entity','level':parent_level+1}
+        links['entity_entity'].append(
+            {'source': parent, 'target': child, 'type': 'is part of', 'source_level': parent_level,
+             'target_level': parent_level + 1})
+        if nodes.get(parent, None) is None:
+            nodes[parent] = {'name': parent, 'type': 'entity', 'level': parent_level}
+        if nodes.get(child, None) is None:
+            nodes[child] = {'name': child, 'type': 'entity', 'level': parent_level + 1}
     # entity-attribute
-    entity_attribute=gl.get_value('ENTITY_ATTRIBUTE')
-    for entity,attribute,_ in entity_attribute:
-        if entity not in subset or attribute not in subset:
+    entity_attribute = gl.get_value('ENTITY_ATTRIBUTE')
+    for entity, attribute, _ in entity_attribute:
+        if entity not in subset_nodes or attribute not in subset_nodes:
             continue
-        links['entity_attribute'].append({'source':entity,'target':attribute,'type':'is an attribute of','source_level':nodes[entity]['level'],'target_level':attribute_level})
-        if nodes.get(attribute,None) is None:
-            nodes[attribute]={'name':attribute,'type':'attribute','level':attribute_level}
+        links['entity_attribute'].append({'source': entity, 'target': attribute, 'type': 'is an attribute of',
+                                          'source_level': nodes[entity]['level'], 'target_level': attribute_level})
+        if nodes.get(attribute, None) is None:
+            nodes[attribute] = {'name': attribute, 'type': 'attribute', 'level': attribute_level}
     # entity-synonym
-    entity_synonym=gl.get_value('ENTITY_SYNONYM')
+    entity_synonym = gl.get_value('ENTITY_SYNONYM')
     for entity, synonym, _ in entity_synonym:
-        if entity in subset and nodes.get(synonym, None) is None:
-            entity_level=nodes[entity]['level']
-            links['entity_synonym'].append({'source':entity,'target':synonym,'type':'is the same as','source_level':entity_level,'target_level':entity_level+1})
-            nodes[synonym]={'name':synonym,'type':'entity_synonym','level':entity_level+1}
+        if entity in subset_nodes and nodes.get(synonym, None) is None:
+            entity_level = nodes[entity]['level']
+            links['entity_synonym'].append(
+                {'source': entity, 'target': synonym, 'type': 'is the same as', 'source_level': entity_level,
+                 'target_level': entity_level + 1})
+            nodes[synonym] = {'name': synonym, 'type': 'entity_synonym', 'level': entity_level + 1}
     # attribute-synonym
-    attribute_synonym=gl.get_value('ATTRIBUTE_SYNONYM')
+    attribute_synonym = gl.get_value('ATTRIBUTE_SYNONYM')
     for attribute, synonym, _ in attribute_synonym:
-        if attribute in subset and nodes.get(synonym, None) is None:
-            links['attribute_synonym'].append({'source':attribute,'target':synonym,'type':'is the same as','source_level':attribute_level,'target_level':attribute_level+1})
-            nodes[synonym]={'name':synonym,'type':'attribute_synonym','level':attribute_level+1}
+        if attribute in subset_nodes and nodes.get(synonym, None) is None:
+            links['attribute_synonym'].append(
+                {'source': attribute, 'target': synonym, 'type': 'is the same as', 'source_level': attribute_level,
+                 'target_level': attribute_level + 1})
+            nodes[synonym] = {'name': synonym, 'type': 'attribute_synonym', 'level': attribute_level + 1}
     # attribute-opinion
-    opinion_pair=gl.get_value('OPINION_PAIR')
+    opinion_pair = gl.get_value('OPINION_PAIR')
     for attribute, opinion, polar in opinion_pair:
-        if attribute not in subset or opinion not in subset:
+        if attribute not in subset_nodes or opinion not in subset_nodes:
             continue
-        type=None
-        if polar==1:
-            type='positive describe'
-        elif polar==-1:
-            type='negative describe'
+        type = None
+        if polar == 1:
+            type = 'positive describe'
+        elif polar == -1:
+            type = 'negative describe'
         else:
-            type='neutral describe'
-        links['attribute_opinion'].append({'source': attribute,'target':opinion,'type':'is a '+type+' of','source_level':attribute_level,'target_level':opinion_level})
-        if nodes.get(opinion,None) is None:
-            nodes[opinion]={'name':opinion,'type':type,'level':opinion_level}
-    gl.set_value('KNOWLEDGE_GRAPH_LINKS',links)
-    gl.set_value('KNOWLEDGE_GRAPH_NODES',nodes)
-    #if not os.path.exists('static/kb_json/part_of_knowledgebase.js'):
-    file = open('static/kb_json/part_of_knowledgebase.js', 'wb')
-    file.write(('links_kb_subset=\'' + json.dumps(links) + '\';\nnodes_kb_subset=\'' + json.dumps(nodes) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+            type = 'neutral describe'
+        links['attribute_opinion'].append(
+            {'source': attribute, 'target': opinion, 'type': 'is a ' + type + ' of', 'source_level': attribute_level,
+             'target_level': opinion_level})
+        if nodes.get(opinion, None) is None:
+            nodes[opinion] = {'name': opinion, 'type': type, 'level': opinion_level}
+    gl.set_value('KNOWLEDGE_GRAPH_LINKS', links)
+    gl.set_value('KNOWLEDGE_GRAPH_NODES', nodes)
+    # if not os.path.exists('static/kb_json/'+product+'/part_of_knowledgebase.js'):
+    file = open('static/kb_json/' + product + '/part_of_knowledgebase.js', 'wb')
+    file.write(
+        ('links_kb_subset=\'' + json.dumps(links) + '\';\nnodes_kb_subset=\'' + json.dumps(nodes) + '\';').replace(
+            '\\"', '\\\\"').encode('utf-8'))
     file.close()
 
 
@@ -235,7 +339,8 @@ def contact():
 
 @app.route('/introduction', methods=['GET', 'POST'])
 def introduction():
-    #if not os.path.exists('static/kb_json/part_of_knowledgebase.js'):
+    product = gl.get_value('PRODUCT', '汽车')
+    # if not os.path.exists('static/kb_json/'+product+'/part_of_knowledgebase.js'):
     knowledge_graph()
     return render_template('introduction.html')
 
@@ -252,31 +357,47 @@ def kb_graph():
     if entity_tree is None:
         knowledge_base_init()
         entity_tree = gl.get_value('ENTITY_TREE')
-    if not os.path.exists('static/kb_json/whole_part.js'):
-        file = open('static/kb_json/whole_part.js', 'wb')
-        file.write(('whole_part=\'' + json.dumps(entity_tree) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
-        file.close()
+    product = gl.get_value('PRODUCT', '汽车')
+    # if not os.path.exists('static/kb_json/'+product+'/whole_part.js'):
+    file = open('static/kb_json/' + product + '/whole_part.js', 'wb')
+    file.write(('whole_part=\'' + json.dumps(entity_tree) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+    file.close()
     if ent != '0':
-        if not os.path.exists('static/kb_json/' + ent + '.js'):
-            ent_attr = kb_build_level2(gl.get_value('ENTITY_ATTRIBUTE'), ent, 'entity', 'attribute')
-            ent_synonym = kb_build_level2(gl.get_value('ENTITY_SYNONYM'), ent, 'entity', 'entity_synonym')
-            file = open('static/kb_json/' + ent + '.js', 'wb')
-            file.write(('ent_attr=\'' + json.dumps(ent_attr) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
-            file.write(('ent_synonym=\'' + json.dumps(ent_synonym) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
-            file.close()
+        # if not os.path.exists('static/kb_json/'+product+'/' + ent + '.js'):
+        ent_attr = kb_build_level2(gl.get_value('ENTITY_ATTRIBUTE'), ent, 'entity', 'attribute')
+        ent_synonym = kb_build_level2(gl.get_value('ENTITY_SYNONYM'), ent, 'entity', 'entity_synonym')
+        file = open('static/kb_json/' + product + '/' + ent + '.js', 'wb')
+        file.write(('ent_attr=\'' + json.dumps(ent_attr) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+        file.write(('ent_synonym=\'' + json.dumps(ent_synonym) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+        file.close()
     else:
         ent = None
     if attr != '0':
-        if not os.path.exists('static/kb_json/' + attr + '.js'):
-            attr_opinion = kb_build_attr_opnion(gl.get_value('OPINION_PAIR'), attr)
-            attr_synonym = kb_build_level2(gl.get_value('ATTRIBUTE_SYNONYM'), attr, 'attribute', 'attribute_synonym')
-            file = open('static/kb_json/' + attr + '.js', 'wb')
-            file.write(('attr_opinion=\'' + json.dumps(attr_opinion) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
-            file.write(('attr_synonym=\'' + json.dumps(attr_synonym) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
-            file.close()
+        # if not os.path.exists('static/kb_json/'+product+'/' + attr + '.js'):
+        attr_opinion = kb_build_attr_opnion(gl.get_value('OPINION_PAIR'), attr)
+        attr_synonym = kb_build_level2(gl.get_value('ATTRIBUTE_SYNONYM'), attr, 'attribute', 'attribute_synonym')
+        file = open('static/kb_json/' + product + '/' + attr + '.js', 'wb')
+        file.write(('attr_opinion=\'' + json.dumps(attr_opinion) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+        file.write(('attr_synonym=\'' + json.dumps(attr_synonym) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+        file.close()
     else:
         attr = None
-    return render_template('knowledge_base.html', ent=ent, attr=attr)
+    return render_template('knowledge_base.html', ent=ent, attr=attr, product=product)
+
+
+@app.route('/getProduct', methods=['GET', 'POST'])
+def get_product():
+    return gl.get_value('PRODUCT', '汽车')
+
+
+@app.route('/changeProduct', methods=['GET', 'POST'])
+def change_product():
+    global init_data
+    product = request.args.get('product')
+    gl.set_value('PRODUCT', product)
+    init_data = init(use_nn=use_nn)
+    knowledge_base_init()
+    return product
 
 
 @app.route('/getProfile', methods=['GET', 'POST'])
@@ -298,6 +419,8 @@ def get_profile():
 def analysis():
     ent = None
     type = request.args.get('type')
+    if type is None:
+        type = 'views'
     if type == 'views':
         ent = '全部'
         gl.set_value('STATE', 'free')
@@ -325,7 +448,9 @@ def analysis():
     if form.is_submitted():
         if form.submit_text.data:
             input_text = form.text.data
-            sentiments, single_pairs = analysis_comment(text=input_text, debug=True, use_nn=use_nn, **init_data)
+            # sentiments, single_pairs = analysis_comment(text=input_text, debug=True, use_nn=use_nn, **init_data)
+            sentiments, single_pairs = analysis_comment(text=input_text, debug=True, **init_data)
+            # sentiments, single_pairs = analysis_comment(text=input_text, debug=True, init_data=init_data)
             # result_list = [sentiments]
             single_pairs = list(set([tuple(t) for t in single_pairs]))
             for entity, attr, describ, polar, text in single_pairs:
@@ -338,12 +463,15 @@ def analysis():
                 gl.set_value('UPLOAD_FILE_PATH', filename)
                 file_url = texts.url(filename)
                 print(file_url)
-                global ent_attr_polar, ent_attr_text
+                global ent_attr_polar, ent_attr_text, ent_polar_include_children
                 gl.set_value('STATE', 'busy')
                 ent_attr_polar, ent_attr_text, download_filepath = gen_summary(filename=filename, use_nn=use_nn,
                                                                                init_data=init_data)
-                word_cloud_generate(filename)
+                # word_cloud_generate(filename)
                 profile_tree = multi_analysis_result(entity_pair)
+                ent_polar_include_children = dict()
+                compute_polar_include_children(profile_tree, ent_polar_include_children)
+                word_cloud_generate()
                 gl.set_value('DOWNLOAD_FILE_PATH', 'downloads/' + download_filepath)
                 file = open('static/result_json/' + filename + '.js', 'wb')
                 file.write(('var data=new Array();\ndata[\'全部\']=\'' + json.dumps(profile_tree) + '\';').replace('\\"',
@@ -362,7 +490,8 @@ def analysis():
                            single_results=single_results, single_pairs=single_pairs,
                            upload_file_name=gl.get_value('UPLOAD_FILE_PATH', None),
                            profile_tree=profile_tree,
-                           ent=ent)
+                           ent=ent,
+                           product=gl.get_value('PRODUCT','汽车'))
 
 
 @app.route('/get_progress', methods=['GET', 'POST'])
@@ -521,6 +650,21 @@ def read_opinion_file(file_path):
     return opinion_pair
 
 
+def read_subset_file(file_path):
+    subset_file=open(file_path,encoding='utf8')
+    subset={'nodes':[],'legend_entity':[],'legend_attribute':[],'legend_description':[]}
+    try:
+        subset['nodes']=subset_file.readline().split()
+        subset['legend_entity']=subset_file.readline().split()
+        subset['legend_attribute']=subset_file.readline().split()
+        subset['legend_description']=subset_file.readline().split()
+    finally:
+        subset_file.close()
+    return subset
+
+
+
+
 def single_analysis_function(input_text):
     pair = [['汽车', '性能', '不错', 1], ['汽车', '价格', '能接受', 0], ['汽车', '外观', '大气', 1], ['内饰', '空间', '不是很大', -1]]
     return pair
@@ -660,9 +804,10 @@ def multi_analysis_result(entity_pair):
                         txts[i] = txts[i] + txt
                         break
         ent_text[ent] = txts
-    root = {'name': '汽车', 'id': 1, 'pos': ent_polar['汽车'][0], 'neu': ent_polar['汽车'][1], 'neg': ent_polar['汽车'][2],
-            'pos_sentence': ' || '.join(ent_text['汽车'][0]), 'neu_sentence': ' || '.join(ent_text['汽车'][1]),
-            'neg_sentence': ' || '.join(ent_text['汽车'][2]), 'child': [], 'type': 'entity'}
+    product=gl.get_value('PRODUCT','汽车')
+    root = {'name': product, 'id': 1, 'pos': ent_polar[product][0], 'neu': ent_polar[product][1], 'neg': ent_polar[product][2],
+            'pos_sentence': ' || '.join(ent_text[product][0]), 'neu_sentence': ' || '.join(ent_text[product][1]),
+            'neg_sentence': ' || '.join(ent_text[product][2]), 'child': [], 'type': 'entity'}
     id = 1
     _ = build_tree(entity_pair, root, ent_text, id)
     return root
@@ -683,6 +828,27 @@ def build_tree(entity_pair, node, ent_text, id):
             node['child'].append(new_node)
             id = build_tree(entity_pair, new_node, ent_text, id)
     return id
+
+
+def compute_polar_include_children(root, ent_polar_include_children):
+    global ent_polar
+    node_name = root['name']
+    polar_include_children = ent_polar[node_name]
+    for child_node in root['child']:
+        polar_include_children = polar_include_children + compute_polar_include_children(child_node,
+                                                                                         ent_polar_include_children)
+    ent_polar_include_children[node_name] = polar_include_children
+    return polar_include_children
+
+
+def compute_attr_polar():
+    global ent_attr_polar
+    attr_polar = dict()
+    for ent_attr, polar in ent_attr_polar.items():
+        attr = ent_attr.split('-')[1]
+        attr_polar.setdefault(attr, [0, 0, 0])
+        attr_polar[attr] = attr_polar[attr] + polar
+    return attr_polar
 
 
 def entity_profile_dict(multi_review_result):

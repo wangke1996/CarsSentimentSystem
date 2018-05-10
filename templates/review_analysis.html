@@ -6,24 +6,26 @@
 		<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 		<meta name="description" content="" />
 		<meta name="keywords" content="" />
-		<!--[if lte IE 8]><script src="{{ url_for('static',filename='css/ie/html5shiv.js') }}"></script><![endif]-->
-		<script src="{{ url_for('static',filename='js/jquery.min.js') }}"></script>
-		<script src="{{ url_for('static',filename='js/jquery.dropotron.min.js') }}"></script>
-		<script src="{{ url_for('static',filename='js/jquery.scrollgress.min.js') }}"></script>
-		<script src="{{ url_for('static',filename='js/skel.min.js') }}"></script>
-		<script src="{{ url_for('static',filename='js/skel-layers.min.js') }}"></script>
-		<script src="{{ url_for('static',filename='js/init.js') }}"></script>
-		<script type="text/javascript" src="{{ url_for('static',filename='d3.js') }}"></script>
-		<script type="text/javascript" src="{{ url_for('static',filename='single_result.js') }}"></script>
-		<script type="text/javascript" src="{{ url_for('static',filename='json2.js') }}"></script>
-		<script type="text/javascript" src="{{ url_for('static',filename='getProfile.js') }}"></script>
-		<script type="text/javascript" src="{{ url_for('static',filename='productProfileInit.js') }}"></script>
+		<!--[if lte IE 8]><script src="{{ url_for('static',filename='WebTemplate/css/ie/html5shiv.js') }}"></script><![endif]-->
+		<script src="{{ url_for('static',filename='WebTemplate/js/jquery.min.js') }}"></script>
+		<script src="{{ url_for('static',filename='WebTemplate/js/jquery.dropotron.min.js') }}"></script>
+		<script src="{{ url_for('static',filename='WebTemplate/js/jquery.scrollgress.min.js') }}"></script>
+		<script src="{{ url_for('static',filename='WebTemplate/js/skel.min.js') }}"></script>
+		<script src="{{ url_for('static',filename='WebTemplate/js/skel-layers.min.js') }}"></script>
+		<script src="{{ url_for('static',filename='WebTemplate/js/init.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static',filename='js/thirdparty/d3.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/single_result.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static',filename='js/thirdparty/json2.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/getProfile.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/productProfileInit.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/changeProduct.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/getValue.js') }}"></script>
 		<noscript>
-			<link rel="stylesheet" href="{{ url_for('static',filename='css/skel.css') }}" />
-			<link rel="stylesheet" href="{{ url_for('static',filename='css/style.css') }}" />
-			<link rel="stylesheet" href="{{ url_for('static',filename='css/style-wide.css') }}" />
+			<link rel="stylesheet" href="{{ url_for('static',filename='WebTemplate/css/skel.css') }}" />
+			<link rel="stylesheet" href="{{ url_for('static',filename='WebTemplate/css/style.css') }}" />
+			<link rel="stylesheet" href="{{ url_for('static',filename='WebTemplate/css/style-wide.css') }}" />
 		</noscript>
-		<!--[if lte IE 8]><link rel="stylesheet" href="{{ url_for('static',filename='static/css/ie/v8.css') }}" /><![endif]-->
+		<!--[if lte IE 8]><link rel="stylesheet" href="{{ url_for('static',filename='WebTemplate/css/ie/v8.css') }}" /><![endif]-->
 	</head>
 	<body>
 
@@ -62,8 +64,19 @@
 			<section id="main" class="container">
 				<header>
 					<h2>文本评论解析</h2>
-					<p>汽车评论文本细粒度情感分析</p>
+					<p>{{product}}评论文本细粒度情感分析</p>
 				</header>
+				<div class="row uniform half">
+					<div class="12u">
+						<div class="select-wrapper">
+							<select name="category" id="category" onchange="changeProduct(this.options[this.options.selectedIndex].value)">
+								<option value="">- 请选择产品类别 -</option>
+								<option value="汽车">汽车</option>
+								<option value="电子">电子</option>
+							</select>
+						</div>
+					</div>
+				</div>
                 <form method="POST" enctype="multipart/form-data">
                     <div class="row">
                         <div class="12u">
@@ -159,7 +172,7 @@
                             <span style="color: red;">请提交txt格式的文件！</span>
                         {% endif %}
                         <progress max="100" value="0" id="pg"></progress>
-                        <script type="text/javascript" src="/static/progress_qeury.js"></script>
+                        <script type="text/javascript" src="/static/js/myjs/progress_qeury.js"></script>
                 
                 		<div id="result_script">
 							<!--{% if download_filepath %}-->
@@ -185,11 +198,11 @@
 							#menu_all {
 							 }
 							 #menu_all ul {
-							 background:url("static/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
+							 background:url("static/WebTemplate/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
 							 }
 							 #menu_all ul li {
 							 padding:5px 0 2px 15px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat 5px -32px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat 5px -32px;
 							 }
 							 #menu_all ul li ul {display:none;}
 							 #menu_all ul li em {
@@ -199,7 +212,7 @@
 							 float:left;
 							 height:15px;
 							 margin-left:-14px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat -32px 2px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat -32px 2px;
 							 }
 							 #menu_all ul li em.off {
 							 background-position: -17px -18px;
@@ -223,11 +236,11 @@
 							#menu_detail {
 							 }
 							 #menu_detail ul {
-							 background:url("static/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
+							 background:url("static/WebTemplate/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
 							 }
 							 #menu_detail ul li {
 							 padding:5px 0 2px 15px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat 5px -32px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat 5px -32px;
 							 }
 							 #menu_detail ul li ul {display:none;}
 							 #menu_detail ul li em {
@@ -237,7 +250,7 @@
 							 float:left;
 							 height:15px;
 							 margin-left:-14px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat -32px 2px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat -32px 2px;
 							 }
 							 #menu_detail ul li em.off {
 							 background-position: -17px -18px;

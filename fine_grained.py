@@ -10,6 +10,7 @@ import imp
 imp.reload(sys)
 import re
 import copy
+import  global_var as gl
 import numpy as np
 from itertools import chain
 from collections import Counter
@@ -73,6 +74,35 @@ def ltp_release():
 
 
 UNIQUE = 'uni'
+
+def init(use_nn=True):
+    """初始化语料库等资源"""
+    product=gl.get_value('PRODUCT','汽车')
+    print('正在进行初始化设置...')
+    ltp_init()
+    entities, term2entity = load_enititiy(whole_part_path='./KnowledgeBase/'+product+'/whole-part.txt',
+                                          entitiy_synonym_path='./KnowledgeBase/'+product+'/entity-synonym.txt')
+    va2attributes, term2attributes, entities = load_attribute(
+        attribute_description_path='./KnowledgeBase/'+product+'/attribute-description.txt',
+        attribute_synonym_path='./KnowledgeBase/'+product+'/attribute-synonym.txt',
+        entity_attribute_path='./KnowledgeBase/'+product+'/entity-attribute.txt',
+        entities=entities)
+    print('loading nn model')
+    # model1 = load_model('libs/aspect-model.h5') if use_nn else None
+    # model2 = load_model('libs/sentiment-model.h5') if use_nn else None
+    # nn_kwargs1 = pickle.load(open('libs/aspect-nnargs.pkl', 'rb')) if use_nn else None
+    # nn_kwargs2 = pickle.load(open('libs/sentiment-nnargs.pkl', 'rb')) if use_nn else None
+    print('初始化设置成功！\n')
+    return {
+        'entities': entities,
+        'term2entity': term2entity,
+        'va2attributes': va2attributes,
+        'term2attributes': term2attributes,
+        #   'model1': model1,
+        #   'nn_kwargs1': nn_kwargs1,
+        #   'model2': model2,
+        #   'nn_kwargs2': nn_kwargs2
+    }
 
 
 class entity(object):
@@ -322,33 +352,6 @@ def split_sentences(text):
     return sents
 
 
-def init(use_nn=True):
-    """初始化语料库等资源"""
-    print('正在进行初始化设置...')
-    ltp_init()
-    entities, term2entity = load_enititiy(whole_part_path='./KnowledgeBase/whole-part.txt',
-                                          entitiy_synonym_path='./KnowledgeBase/entity-synonym.txt')
-    va2attributes, term2attributes, entities = load_attribute(
-        attribute_description_path='./KnowledgeBase/attribute-description.txt',
-        attribute_synonym_path='./KnowledgeBase/attribute-synonym.txt',
-        entity_attribute_path='./KnowledgeBase/entity-attribute.txt',
-        entities=entities)
-    print('loading nn model')
-    # model1 = load_model('libs/aspect-model.h5') if use_nn else None
-    # model2 = load_model('libs/sentiment-model.h5') if use_nn else None
-    # nn_kwargs1 = pickle.load(open('libs/aspect-nnargs.pkl', 'rb')) if use_nn else None
-    # nn_kwargs2 = pickle.load(open('libs/sentiment-nnargs.pkl', 'rb')) if use_nn else None
-    print('初始化设置成功！\n')
-    return {
-        'entities': entities,
-        'term2entity': term2entity,
-        'va2attributes': va2attributes,
-        'term2attributes': term2attributes,
-        #   'model1': model1,
-        #   'nn_kwargs1': nn_kwargs1,
-        #   'model2': model2,
-        #   'nn_kwargs2': nn_kwargs2
-    }
 
 
 sorted_unique_words = None
@@ -657,7 +660,7 @@ def sentiment_analysis(text, words, postags, arcs,
             # 否定score取反
             if score != None:
                 if this_va_num in negation_logs:
-                    score = score * -1;
+                    score = score * -1
                     this_va = negation_logs.get(this_va_num)
                 #score = score * (-1 if this_va_num in negation_logs else 1)
             try:

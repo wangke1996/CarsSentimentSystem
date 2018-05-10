@@ -2,26 +2,28 @@
 
 <html>
 	<head>
-		<title>汽车领域知识库</title>
+		<title>{{product}}领域知识库</title>
 		<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 		<meta name="description" content="" />
 		<meta name="keywords" content="" />
-		<!--[if lte IE 8]><script src="static/css/ie/html5shiv.js"></script><![endif]-->
-		<script src="static/js/jquery.min.js"></script>
-		<script src="static/js/jquery.dropotron.min.js"></script>
-		<script src="static/js/jquery.scrollgress.min.js"></script>
-		<script src="static/js/skel.min.js"></script>
-		<script src="static/js/skel-layers.min.js"></script>
-		<script src="static/js/init.js"></script>
-		<script type="text/javascript" src="static/kb_json/whole_part.js" charset="utf-8"></script>
-		<script type="text/javascript" src="static/json2.js"></script>
-		<script type="text/javascript" src="static/knowledgeBaseInit.js" charset="utf-8"></script>
+		<!--[if lte IE 8]><script src="static/WebTemplate/css/ie/html5shiv.js"></script><![endif]-->
+		<script src="static/WebTemplate/js/jquery.min.js"></script>
+		<script src="static/WebTemplate/js/jquery.dropotron.min.js"></script>
+		<script src="static/WebTemplate/js/jquery.scrollgress.min.js"></script>
+		<script src="static/WebTemplate/js/skel.min.js"></script>
+		<script src="static/WebTemplate/js/skel-layers.min.js"></script>
+		<script src="static/WebTemplate/js/init.js"></script>
+		<script type="text/javascript" src="static/kb_json/{{product}}/whole_part.js" charset="utf-8"></script>
+		<script type="text/javascript" src="static/js/thirdparty/json2.js"></script>
+		<script type="text/javascript" src="static/js/myjs/knowledgeBaseInit.js" charset="utf-8"></script>
+		<script type="text/javascript" src="static/js/myjs/changeProduct.js" charset="utf-8"></script>
+		<script type="text/javascript" src="static/js/myjs/getValue.js" charset="utf-8"></script>
 		<noscript>
-			<link rel="stylesheet" href="static/css/skel.css" />
-			<link rel="stylesheet" href="static/css/style.css" />
-			<link rel="stylesheet" href="static/css/style-wide.css" />
+			<link rel="stylesheet" href="static/WebTemplate/css/skel.css" />
+			<link rel="stylesheet" href="static/WebTemplate/css/style.css" />
+			<link rel="stylesheet" href="static/WebTemplate/css/style-wide.css" />
 		</noscript>
-		<!--[if lte IE 8]><link rel="stylesheet" href="static/css/ie/v8.css" /><![endif]-->
+		<!--[if lte IE 8]><link rel="stylesheet" href="static/WebTemplate/css/ie/v8.css" /><![endif]-->
 	</head>
 	<body>
 
@@ -59,7 +61,7 @@
 		<!-- Main -->
 			<section id="main" class="container">
 				<header>
-				  <h2>汽车领域知识库</h2>
+				  <h2>{{product}}领域知识库</h2>
 				  <p>实体-属性-情感知识图谱呈现</p>
 					<style>
 							<!--
@@ -67,11 +69,11 @@
 							#menu_entity {
 							 }
 							 #menu_entity ul {
-							 background:url("static/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
+							 background:url("static/WebTemplate/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
 							 }
 							 #menu_entity ul li {
 							 padding:5px 0 2px 15px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat 5px -32px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat 5px -32px;
 							 }
 							 #menu_entity ul li ul {display:none;}
 							 #menu_entity ul li em {
@@ -81,7 +83,7 @@
 							 float:left;
 							 height:15px;
 							 margin-left:-14px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat -32px 2px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat -32px 2px;
 							 }
 							 #menu_entity ul li em.off {
 							 background-position: -17px -18px;
@@ -95,11 +97,11 @@
 							 #menu_entity_attribute {
 							 }
 							 #menu_entity_attribute ul {
-							 background:url("static/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
+							 background:url("static/WebTemplate/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
 							 }
 							 #menu_entity_attribute ul li {
 							 padding:5px 0 2px 15px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat 5px -32px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat 5px -32px;
 							 }
 							 #menu_entity_attribute ul li ul {display:none;}
 							 #menu_entity_attribute ul li em {
@@ -109,7 +111,7 @@
 							 float:left;
 							 height:15px;
 							 margin-left:-14px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat -32px 2px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat -32px 2px;
 							 }
 							 #menu_entity_attribute ul li em.off {
 							 background-position: -17px -18px;
@@ -123,11 +125,11 @@
 							 #menu_entity_synonym {
 							 }
 							 #menu_entity_synonym ul {
-							 background:url("static/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
+							 background:url("static/WebTemplate/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
 							 }
 							 #menu_entity_synonym ul li {
 							 padding:5px 0 2px 15px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat 5px -32px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat 5px -32px;
 							 }
 							 #menu_entity_synonym ul li ul {display:none;}
 							 #menu_entity_synonym ul li em {
@@ -137,7 +139,7 @@
 							 float:left;
 							 height:15px;
 							 margin-left:-14px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat -32px 2px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat -32px 2px;
 							 }
 							 #menu_entity_synonym ul li em.off {
 							 background-position: -17px -18px;
@@ -151,11 +153,11 @@
 							 #menu_attribute_synonym {
 							 }
 							 #menu_attribute_synonym ul {
-							 background:url("static/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
+							 background:url("static/WebTemplate/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
 							 }
 							 #menu_attribute_synonym ul li {
 							 padding:5px 0 2px 15px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat 5px -32px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat 5px -32px;
 							 }
 							 #menu_attribute_synonym ul li ul {display:none;}
 							 #menu_attribute_synonym ul li em {
@@ -165,7 +167,7 @@
 							 float:left;
 							 height:15px;
 							 margin-left:-14px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat -32px 2px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat -32px 2px;
 							 }
 							 #menu_attribute_synonym ul li em.off {
 							 background-position: -17px -18px;
@@ -179,11 +181,11 @@
 							 #menu_attribute_opinion {
 							 }
 							 #menu_attribute_opinion ul {
-							 background:url("static/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
+							 background:url("static/WebTemplate/images/ul-bg.gif") repeat-y 5px 0px; overflow:hidden;
 							 }
 							 #menu_attribute_opinion ul li {
 							 padding:5px 0 2px 15px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat 5px -32px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat 5px -32px;
 							 }
 							 #menu_attribute_opinion ul li ul {display:none;}
 							 #menu_attribute_opinion ul li em {
@@ -193,7 +195,7 @@
 							 float:left;
 							 height:15px;
 							 margin-left:-14px;
-							 background:url("static/images/tree-ul-li.gif") no-repeat -32px 2px;
+							 background:url("static/WebTemplate/images/tree-ul-li.gif") no-repeat -32px 2px;
 							 }
 							 #menu_attribute_opinion ul li em.off {
 							 background-position: -17px -18px;
@@ -208,6 +210,17 @@
 							</style>
 
 				</header>
+				<div class="row uniform half">
+					<div class="12u">
+						<div class="select-wrapper">
+							<select name="category" id="category" onchange="changeProduct(this.options[this.options.selectedIndex].value)">
+								<option value="">- 请选择产品类别 -</option>
+								<option value="汽车">汽车</option>
+								<option value="电子">电子</option>
+							</select>
+						</div>
+					</div>
+				</div>
 				<div class="row">
 					<div class="12u">
 							<section class="box">
@@ -269,14 +282,14 @@
 				knowledgeBaseInit('menu_entity');
 			</script>
 			{% if ent %}
-				<script type="text/javascript" src="static/kb_json/{{ ent }}.js" charset="utf-8"></script>
+				<script type="text/javascript" src="static/kb_json/{{product}}/{{ ent }}.js" charset="utf-8"></script>
 				<script type="text/javascript">
 					knowledgeBaseInit('menu_entity_synonym');
 					knowledgeBaseInit('menu_entity_attribute');
 				</script>
 			{% endif %}
 			{% if attr %}
-			<script type="text/javascript" src="static/kb_json/{{ attr }}.js" charset="utf-8"></script>
+			<script type="text/javascript" src="static/kb_json/{{product}}/{{ attr }}.js" charset="utf-8"></script>
 			<script type="text/javascript">
 				knowledgeBaseInit('menu_attribute_opinion');
 				knowledgeBaseInit('menu_attribute_synonym');
