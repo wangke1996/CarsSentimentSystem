@@ -9,11 +9,27 @@ import imp
 import json
 import random
 import global_var as gl
+gl._init()
 import matplotlib.pyplot as plt
 import jieba
 from PIL import Image
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
-
+import gensim
+from flask import Flask, request, redirect, url_for
+from flask import render_template
+from flask_bootstrap import Bootstrap
+from flask_wtf import FlaskForm
+from flask_wtf.file import FileField
+from flask_uploads import UploadSet, configure_uploads, TEXT, patch_request_class, UploadNotAllowed
+from wtforms import SubmitField, TextAreaField
+from collections import defaultdict
+from werkzeug.utils import secure_filename
+from Fine_grained.Src.Fine_grained.FINE_GRAINED import init, analysis_comment
+from Fine_grained.Src.Fine_grained.CONFIG import CONF
+# from fine_grained import init, analysis_comment
+from summary import gen_summary
+# 不显示server输出
+import logging
 # width,height,margin可以设置图片属性
 
 # generate 可以对全部文本进行自动分词,但是他对中文支持不好,对中文的分词处理请看我的下一篇文章
@@ -25,25 +41,14 @@ from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
 
 
 
-gl._init()
+
 gl.set_value('PROGRESS', 0)  # 后端分析进度百分比
 gl.set_value('STATE', 'free')
+gl.set_value('WORD2VEC_MODEL',gensim.models.Word2Vec.load(CONF.WORD2VEC_PATH))
+
 imp.reload(sys)
 sys.path.append("..")
-from flask import Flask, request, redirect, url_for
-from flask import render_template
-from flask_bootstrap import Bootstrap
-from flask_wtf import FlaskForm
-from flask_wtf.file import FileField
-from flask_uploads import UploadSet, configure_uploads, TEXT, patch_request_class, UploadNotAllowed
-from wtforms import SubmitField, TextAreaField
-from collections import defaultdict
-from werkzeug.utils import secure_filename
-# from Fine_grained.Src.Fine_grained.FINE_GRAINED import init, analysis_comment
-from fine_grained import init, analysis_comment
-from summary import gen_summary
-# 不显示server输出
-import logging
+
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
@@ -68,8 +73,8 @@ configure_uploads(app, texts)
 patch_request_class(app)  # 文件大小限制，默认为16MB
 
 use_nn = False
-init_data = init(use_nn=use_nn)
-# init_data=init()
+# init_data = init(use_nn=use_nn)
+init_data=init()
 
 profile_tree = None
 ent_attr_polar = None
@@ -395,7 +400,9 @@ def change_product():
     global init_data
     product = request.args.get('product')
     gl.set_value('PRODUCT', product)
-    init_data = init(use_nn=use_nn)
+    # init_data = init(use_nn=use_nn)
+    CONF.__init__()
+    init_data = init()
     knowledge_base_init()
     return product
 
@@ -437,7 +444,7 @@ def analysis():
     input_text = None
     upload_error = None
     single_results = None
-    single_pairs = None
+    state_list = None
     global profile_tree
 
     entity_pair = gl.get_value('ENTITY_PAIR', None)
@@ -448,15 +455,13 @@ def analysis():
     if form.is_submitted():
         if form.submit_text.data:
             input_text = form.text.data
-            # sentiments, single_pairs = analysis_comment(text=input_text, debug=True, use_nn=use_nn, **init_data)
-            sentiments, single_pairs = analysis_comment(text=input_text, debug=True, **init_data)
-            # sentiments, single_pairs = analysis_comment(text=input_text, debug=True, init_data=init_data)
-            # result_list = [sentiments]
-            single_pairs = list(set([tuple(t) for t in single_pairs]))
-            for entity, attr, describ, polar, text in single_pairs:
-                print(entity + ' ' + attr + ' ' + describ + ' ' + str(polar) + ' ' + text)
+            # sentiments, single_pairs = analysis_comment(text=input_text, debug=True, **init_data)
+            sentiments, state_list = analysis_comment(text=input_text, debug=True, init_data=init_data)
+            # state_list = list(set([tuple(t) for t in state_list]))
+            for state in state_list:
+                print(state.this_entity_name + ' ' + state.this_attribute_name + ' ' + state.this_va + ' ' + str(state.this_score) + ' ' + state.text+' '+str(state.confidence))
             input_text = form.text.data
-            single_results = single_analysis_results(single_pairs, entity_pair, entity_level)
+            single_results = single_analysis_results(state_list, entity_pair, entity_level)
         elif form.submit_file.data:
             try:
                 filename = texts.save(form.file.data)
@@ -487,11 +492,23 @@ def analysis():
                            input_text=input_text,
                            upload_error=upload_error,
                            download_filepath=gl.get_value('DOWNLOAD_FILE_PATH', None),
-                           single_results=single_results, single_pairs=single_pairs,
+                           single_results=single_results, state_list=state_list,
                            upload_file_name=gl.get_value('UPLOAD_FILE_PATH', None),
                            profile_tree=profile_tree,
                            ent=ent,
                            product=gl.get_value('PRODUCT','汽车'))
+
+from Fine_grained.Src.Fine_grained.STATE import State
+@app.route('/test', methods=['GET', 'POST'])
+def test():
+    S1=State()
+    S1.text="just a test"
+    S2=State()
+    S2.text="another test"
+    list=[]
+    list.append(S1)
+    list.append(S2)
+    return  render_template('test.html',list=list)
 
 
 @app.route('/get_progress', methods=['GET', 'POST'])
@@ -863,11 +880,11 @@ def entity_profile_dict(multi_review_result):
     return pair
 
 
-def single_analysis_results(single_result_pair, entity_pair, entity_level):
+def single_analysis_results(state_list, entity_pair, entity_level):
     results = []
     entity_included = []
-    for pair in single_result_pair:
-        entity_included.append(pair[0])
+    for state in state_list:
+        entity_included.append(state.this_entity_name)
     flag_included_all = False
     while flag_included_all is False:
         flag_included_all = True
@@ -878,14 +895,14 @@ def single_analysis_results(single_result_pair, entity_pair, entity_level):
     for pair in entity_pair:
         if pair[1] in entity_included:
             results.append([pair[0], pair[1], '', -2, pair[2], ''])
-    for pair in single_result_pair:
-        ent = pair[0]
-        attr = pair[1]
-        describe = pair[2]
-        polarity = pair[3]
+    for state in state_list:
+        ent = state.this_entity_name
+        attr = state.this_attribute_name
+        describe = state.this_va
+        polarity = state.this_score
         if polarity is None:
             polarity = 0
-        sentence = pair[4]
+        sentence = state.text
         level = entity_level[ent]
         results.append([ent, attr, describe, polarity, level, sentence])
     return results

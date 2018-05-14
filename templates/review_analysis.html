@@ -88,7 +88,6 @@
                         {{ wtf.form_field(form.submit_text) }}
                         {% if single_results %}
 							<div id="single_box">
-								{% if single_pairs %}
 								<table border="1" style="table-layout:fixed;">
 									<tr>
 										<td> 实体 </td>
@@ -96,44 +95,48 @@
 										<td> 评价极性 </td>
 										<td> 评价词 </td>
 										<td> 相关语句 </td>
+										<td> 置信度 </td>
 									</tr>
-									{% for entity, attribute, describe, polar, text in single_pairs %}
-										{% if polar is none %}
+									{% for state in state_list %}
+										{% if state.this_score is none %}
 											<tr>
-												<td> {{ entity }} </td>
-												<td> {{ attribute }} </td>
+												<td> {{ state.this_entity_name }} </td>
+												<td> {{ state.this_attribute_name }} </td>
 												<td><span style="color: blue;"> 不确定 </span></td>
-												<td><span style="color: blue;"> {{ describe }} </span></td>
-												<td><span style="color: blue;"> {{ text }} </span></td>
+												<td><span style="color: blue;"> {{ state.this_va }} </span></td>
+												<td><span style="color: blue;"> {{ state.text }} </span></td>
+												<td> {{ state.confidence }} </td>
 											</tr>
-										{% elif polar > 0 %}
+										{% elif state.this_score > 0 %}
 											<tr>
-												<td> {{ entity }} </td>
-												<td> {{ attribute }} </td>
+												<td> {{ state.this_entity_name }} </td>
+												<td> {{ state.this_attribute_name }} </td>
 												<td><span style="color: green;"> 正面 </span></td>
-												<td><span style="color: green;"> {{ describe }} </span></td>
-												<td><span style="color: green;"> {{ text }} </span></td>
+												<td><span style="color: green;"> {{ state.this_va }} </span></td>
+												<td><span style="color: green;"> {{ state.text }} </span></td>
+												<td> {{ state.confidence }} </td>
 											</tr>
-										{% elif polar < 0 %}
+										{% elif state.this_score < 0 %}
 											<tr>
-												<td> {{ entity }} </td>
-												<td> {{ attribute }} </td>
+												<td> {{ state.this_entity_name }} </td>
+												<td> {{ state.this_attribute_name }} </td>
 												<td><span style="color: red;"> 负面 </span></td>
-												<td><span style="color: red;"> {{ describe }} </span></td>
-												<td><span style="color: red;"> {{ text }} </span></td>
+												<td><span style="color: red;"> {{ state.this_va }} </span></td>
+												<td><span style="color: red;"> {{ state.text }} </span></td>
+												<td> {{ state.confidence }} </td>
 											</tr>
 										{% else %}
 											<tr>
-												<td> {{ entity }} </td>
-												<td> {{ attribute }} </td>
+												<td> {{ state.this_entity_name }} </td>
+												<td> {{ state.this_attribute_name }} </td>
 												<td><span style="color:orange;"> 中性 </span></td>
-												<td><span style="color: orange;"> {{ describe }} </span></td>
-												<td><span style="color: orange;"> {{ text }} </span></td>
+												<td><span style="color: orange;"> {{ state.this_va }} </span></td>
+												<td><span style="color: orange;"> {{ state.text }} </span></td>
+												<td> {{ state.confidence }} </td>
 											</tr>
 										{% endif %}
 									{% endfor %}
 								</table>
-								{% endif %}
 							</div>
                             <script type="text/javascript">  
                                 var link_single=new Array();

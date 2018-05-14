@@ -1,6 +1,7 @@
 from collections import Counter
 from pprint import pprint
 from tqdm import tqdm
+from Fine_grained.Src.Fine_grained.FINE_GRAINED import analysis_comment
 import global_var as gl
 def gen_summary(texts=None, filename=None, init_data=None, use_nn=True):
     if not texts:
@@ -11,8 +12,13 @@ def gen_summary(texts=None, filename=None, init_data=None, use_nn=True):
     for text in tqdm(texts, desc='analyzing'):
         progress=progress+1
         gl.set_value('PROGRESS',round(100*progress/len(texts)))
-        _, single_pairs = analysis_comment(text, debug=False, use_nn=use_nn, **init_data)
-        for ent, attr, describ, polar, txt in single_pairs:
+        # _, state_list = analysis_comment(text, debug=False, use_nn=use_nn, **init_data)
+        _, state_list = analysis_comment(text, init_data=init_data)
+        for state in state_list:
+            ent=state.this_entity_name
+            attr=state.this_attribute_name
+            polar=state.this_score
+            txt=state.text
             attr_polars=ent_attr_polar.setdefault(ent+'-'+attr,[0,0,0]) # value is the number of positive/neural/negative reviews of the attribute
             txts = ent_attr_text.setdefault(ent+'-'+attr,[[],[],[]]) # value is the set of pos/neu/neg reviews of the entity
             if polar==1:
@@ -108,8 +114,6 @@ def gen_summary(texts=None, filename=None, init_data=None, use_nn=True):
 import csv
 
 import codecs
-
-from fine_grained import analysis_comment
 
 
 GENERAL = '整体描述'
