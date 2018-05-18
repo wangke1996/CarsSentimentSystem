@@ -1,19 +1,89 @@
-from collections import Counter
-from pprint import pprint
-from tqdm import tqdm
 from Fine_grained.Src.Fine_grained.FINE_GRAINED import analysis_comment
-import global_var as gl
-def gen_summary(texts=None, filename=None, init_data=None, use_nn=True):
+import multiprocessing as mp
+from time import time,sleep
+from global_var import gl
+def analysis_process(pid, tasks, task_num, state_queue, child_conn, request_queue):
+    process_result=[]
+    init_data=pipe_request(request_queue=request_queue, child_conn=child_conn, id=pid, var_name='INIT_DATA')
+    model=pipe_request(request_queue=request_queue, child_conn=child_conn, id=pid, var_name='WORD2VEC_MODEL')
+    while True:
+        if tasks.empty():
+            break
+        try:
+            text=tasks.get(False)
+        except Exception as e:
+            continue
+        pipe_request(request_queue=request_queue, child_conn=child_conn, id=pid, var_name='PROGRESS', value=round(100 * (task_num - tasks.qsize()) / task_num), type='post')
+        _,single_result=analysis_comment(pid=pid,text=text,init_data=init_data,model=model)
+        process_result.extend(single_result)
+    state_queue.put(process_result)
+    pipe_request(request_queue=request_queue, child_conn=child_conn, id=pid, var_name=None, type='close')
+
+def pipe_request(request_queue,child_conn,id,var_name,value=None,type='get'):
+    child_conn.send([var_name,value,type])
+    request_queue.put(id)
+    if type=='get':
+        return child_conn.recv()
+    return None
+
+def pip_response(request_queue,parent_conns,thread_num):
+    finish_pid=[]
+    while True:
+        try:
+            id=request_queue.get(False)
+            request=parent_conns[id].recv()
+            var_name=request[0]
+            value=request[1]
+            type=request[2]
+            if type=='get':
+                value= gl.get_value(var_name)
+                parent_conns[id].send(value)
+            elif type=='post':
+                gl.set_value(var_name,value)
+            elif type=='close':
+                finish_pid.append(id)
+                if len(finish_pid)==thread_num:
+                    break
+        except Exception as e:
+            sleep(1)
+            continue
+
+def gen_summary(texts=None, filename=None, thread_num=mp.cpu_count()):
     if not texts:
         texts = load_texts(filename)
+    ctx=mp.get_context('spawn')
+    # manager=mp.Manager()
+    # mp.freeze_support()
+    tasks=ctx.Queue(len(texts))
+    state_queue=ctx.Queue(thread_num)
+    parent_conns=[]
+    request_queue = ctx.Queue()
+    thread_list=[]
+    for text in texts:
+        tasks.put(text)
+    task_num=tasks.qsize()
+    # gl.set_value('INIT_DATA',init_data)
+    start=time()
+    for i in range(thread_num):
+        parent_conn, child_conn = ctx.Pipe()
+        parent_conns.append(parent_conn)
+        p = ctx.Process(target=analysis_process, args=(i, tasks, task_num, state_queue, child_conn, request_queue,))
+        thread_list.append(p)
+    for p in thread_list:
+        p.start()
+    pip_response(request_queue,parent_conns,thread_num)
+    # for p in thread_list:
+    #     p.join()
+    gl.set_value('PROGRESS',100)
+    print('single analysis by %d process, %d comments time use: %ds' % (thread_num,task_num,time()-start))
+    # p=Process(target=analysis_process,args=(tasks,tasks.qsize(),state_list,lock,init_data))
+    # p.start()
+    # p.join()
+
     ent_attr_polar=dict()
     ent_attr_text=dict()
-    progress=0
-    for text in tqdm(texts, desc='analyzing'):
-        progress=progress+1
-        gl.set_value('PROGRESS',round(100*progress/len(texts)))
-        # _, state_list = analysis_comment(text, debug=False, use_nn=use_nn, **init_data)
-        _, state_list = analysis_comment(text, init_data=init_data)
+    while not state_queue.empty():
+        state_list=state_queue.get()
         for state in state_list:
             ent=state.this_entity_name
             attr=state.this_attribute_name
@@ -38,9 +108,9 @@ def gen_summary(texts=None, filename=None, init_data=None, use_nn=True):
 
             ent_attr_polar[ent+'-'+attr]=attr_polars
             ent_attr_text[ent+'-'+attr]=txts
-    #total = 0
-    # smr = dict()
-        # aspects, sentiments, nn_aspect, nn_sentiment, details = analysis_comment(text, debug=False, use_nn=use_nn, **init_data)
+        #total = 0
+        # smr = dict()
+            # aspects, sentiments, nn_aspect, nn_sentiment, details = analysis_comment(text, debug=False, use_nn=use_nn, **init_data)
     #     for aspect in details.keys():
     #         if '-' in aspect:
     #             lv1, lv2 = aspect.split('-')

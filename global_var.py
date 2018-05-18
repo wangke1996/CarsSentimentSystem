@@ -1,14 +1,17 @@
- # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
+class GLOBAL_VAR:
+    def __init__(self):
+        # freeze_support()
+        # manager=Manager()
+        # self.manager=manager
+        self._global_dict = dict()
+    def set_value(self, name, value):
+        self._global_dict[name] = value
 
-def _init():
-    global _global_dict
-    _global_dict = {}
+    def get_value(self, name, defValue=None):
+        try:
+            return self._global_dict[name]
+        except KeyError:
+            return defValue
 
-def set_value(name, value):
-    _global_dict[name] = value
-
-def get_value(name: object, defValue: object = None) -> object:
-    try:
-        return _global_dict[name]
-    except KeyError:
-        return defValue
+gl = GLOBAL_VAR()

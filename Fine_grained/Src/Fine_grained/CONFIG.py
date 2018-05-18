@@ -6,11 +6,10 @@ import sys
 import imp
 imp.reload(sys)
 #sys.setdefaultencoding('utf8')
-import global_var as gl
 
 class Config(object):
     # 基本设置
-    def __init__(self):
+    def __init__(self,product):
         # test comment
         self.TEST_COMMENT = u'''方向盘外观很好看，但手感不太舒适'''
 
@@ -21,7 +20,7 @@ class Config(object):
         self.FINE_GRAINED_PATH = self.PROJECT_PATH + 'Src/Fine_grained/'
 
         # lib path
-        self.LIB_PATH = os.path.abspath('./KnowledgeBase')+'/'+gl.get_value('PRODUCT','汽车')+'/'
+        self.LIB_PATH = os.path.abspath('./KnowledgeBase')+'/'+product+'/'
         self.WHOLE_PART_PATH = self.LIB_PATH + 'whole-part.txt'
         self.ENTITY_SYNONYM_PATH = self.LIB_PATH + 'entity-synonym.txt'
         self.ATTRIBUTE_DESCRIPTION_PATH = self.LIB_PATH + 'attribute-description.txt'
@@ -53,4 +52,4 @@ class Config(object):
         self.CONFIDENCE_LIMITH = 5
 
 
-CONF = Config()
+CONF = Config('汽车')

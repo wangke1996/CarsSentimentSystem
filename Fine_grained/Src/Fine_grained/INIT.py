@@ -10,8 +10,6 @@ imp.reload(sys)
 from . import ATTRIBUTE
 from . import ENEITY
 from .CONFIG import CONF
-
-
 def load_enititiy(whole_part_path, entitiy_synonym_path):
     """加载预定义的实体设置"""
 
@@ -147,7 +145,7 @@ def load_va(na_out_path, supplement_path):
     return va2attributes, va2confidence
 
 
-def init():
+def init_knowledge_base():
     """初始化语料库等资源"""
 
     print('正在进行初始化设置...')
@@ -162,12 +160,15 @@ def init():
                                            supplement_path=CONF.SUPPLEMENT_ATTRIBUTE_SYNONYM_PATH)
 
     print('初始化设置成功！\n')
-    return {
-        'entities': entities,
-        'term2entity': term2entity,
-        'va2attributes': va2attributes,
-        'term2attributes': term2attributes,
-        'entity2term': entity2term,
-        'attributes2term': attributes2term,
-        'va2confidence': va2confidence
-    }
+    # multiprocessing.freeze_support()
+    init_data=dict(entities=entities,term2entity=term2entity,va2attributes=va2attributes,term2attributes=term2attributes,entity2term=entity2term,attributes2term=attributes2term,va2confidence=va2confidence)
+    return init_data
+    # return {
+    #     'entities': entities,
+    #     'term2entity': term2entity,
+    #     'va2attributes': va2attributes,
+    #     'term2attributes': term2attributes,
+    #     'entity2term': entity2term,
+    #     'attributes2term': attributes2term,
+    #     'va2confidence': va2confidence
+    # }

@@ -13,7 +13,7 @@ from .CONFIG import CONF
 from .ENEITY2SENTIMENT import entities2sentiments_group
 from .ENEITY2SENTIMENT import entities2sentiments_single
 from .GRAMMAR_ANALYSIS import grammar_analysis
-from .INIT import init
+from .INIT import init_knowledge_base
 from .PRETREAT import clean_text, split_sentences
 from .SENTIMENT_ANALYSIS import sentiment_analysis
 
@@ -24,8 +24,7 @@ sorted_unique_words_attributes = set()
 sorted_unique_words_va = set()
 
 
-def analysis_comment(text, init_data,
-                     debug=False, file=sys.stdout):
+def analysis_comment(text, init_data, model,pid=0):
     """处理单条评论的api接口
     处理流程：
         - 预处理
@@ -50,14 +49,15 @@ def analysis_comment(text, init_data,
     text = clean_text(text)
     sents = split_sentences(text)
 
-    words_list, postags_list, arcs_list = grammar_analysis(text_list=sents, term2entity=term2entity,
+    words_list, postags_list, arcs_list = grammar_analysis(pid=pid,text_list=sents, term2entity=term2entity,
                                                            va2attributes=va2attributes,
                                                            term2attributes=term2attributes,
                                                            sorted_unique_words=sorted_unique_words,
                                                            sorted_unique_words_entities=sorted_unique_words_entities,
                                                            sorted_unique_words_attributes=sorted_unique_words_attributes,
                                                            sorted_unique_words_va=sorted_unique_words_va)
-    state_list = sentiment_analysis(text_list=sents, words_list=words_list, arcs_list=arcs_list,
+    try:
+        state_list = sentiment_analysis(model=model,text_list=sents, words_list=words_list, arcs_list=arcs_list,
                                        entities=this_entities,
                                        term2entity=term2entity, va2attributes=va2attributes,
                                        term2attributes=term2attributes,
@@ -68,8 +68,9 @@ def analysis_comment(text, init_data,
                                        entity2term=entity2term,
                                        attributes2term=attributes2term,
                                        va2confidence=va2confidence)
-
-    print()
+    except Exception as e:
+        raise(e)
+    print('pid=%d text=%s' % (pid,text) )
     # state_list.sort(reverse=True,key=lambda x:x.confidence)
     # sentiments = entities2sentiments_group(this_entities)
     # return sentiments
@@ -80,7 +81,7 @@ if __name__ == '__main__':
 
     use_nn = False
 
-    init_data = init()
+    init_data = init_knowledge_base()
 
     sentiments = analysis_comment(text=CONF.TEST_COMMENT, debug=True, file=None, init_data=init_data)
 

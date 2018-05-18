@@ -15,21 +15,21 @@ from .CONFIG import CONF
 from .CONFIG_LTP import CONF_LTP
 
 
-def ltp_commend(commend_name, num_threads, input_path, output_path):
+def ltp_commend(commend_name, num_threads, input_path, output_path, pid=0):
     """LTP指令"""
 
     # 指令1前往目标文件夹
     command_1 = 'cd ' + CONF_LTP.LTP_PATH
 
     # 指令2运行ltp
-    command_2 = commend_name + ' --threads ' + num_threads + ' --input ' + input_path + ' > ' + output_path
+    command_2 = commend_name + ' --threads ' + num_threads + ' --input ' + input_path + ' > ' + output_path+' 2>ltp_commend.out_'+str(pid)
     command = command_1 + ' & ' + command_2
     os.system(command)
 
 
 def grammar_analysis(text_list, term2entity, va2attributes, term2attributes,
                      sorted_unique_words, sorted_unique_words_entities,
-                     sorted_unique_words_attributes, sorted_unique_words_va):
+                     sorted_unique_words_attributes, sorted_unique_words_va,pid=0):
     """对输入文本进行语法分析"""
 
     # 保留原输入不做修改
@@ -55,15 +55,15 @@ def grammar_analysis(text_list, term2entity, va2attributes, term2attributes,
         sorted_unique_words.update(sorted_unique_words_attributes)
         sorted_unique_words.update(sorted_unique_words_va)
 
-        def _sort_uni_len(x):
-            if re.match(r'不', x, flags=0):
-                return len(x) + 0.5
-            else:
-                return len(x)
+    def _sort_uni_len(x):
+        if re.match(r'不', x, flags=0):
+            return len(x) + 0.5
+        else:
+            return len(x)
 
         # 按长度排序，优先匹配较长的单词
-        sorted_unique_words = list(sorted_unique_words)
-        sorted_unique_words.sort(key=lambda x: _sort_uni_len(x), reverse=True)
+    sorted_unique_words = list(sorted_unique_words)
+    sorted_unique_words.sort(key=lambda x: _sort_uni_len(x), reverse=True)
 
     # 首尾加入空格并替换为xxx+数字格式，防止连续在一起出现的实体无法识别
     for idx, word in enumerate(sorted_unique_words):
@@ -77,16 +77,16 @@ def grammar_analysis(text_list, term2entity, va2attributes, term2attributes,
 
     # LTP分词
 
-    with open(CONF.TEXT_SEG_PATH, 'w', encoding = 'utf8')as outfile:
+    with open(CONF.TEXT_SEG_PATH+'_'+str(pid), 'w', encoding = 'utf8')as outfile:
         for x in text_list:
             outfile.write(x + '\n')
         outfile.close()
 
     ltp_commend(commend_name=CONF_LTP.LTP_CWS_NAME, num_threads=CONF_LTP.LTP_CWS_THREAD,
-                input_path=CONF.TEXT_SEG_PATH, output_path=CONF.TEXT_CWS_PATH)
+                input_path=CONF.TEXT_SEG_PATH+'_'+str(pid), output_path=CONF.TEXT_CWS_PATH+'_'+str(pid),pid=pid)
 
     words_list = []
-    with open(CONF.TEXT_CWS_PATH, 'r', encoding = 'utf8')as infile:
+    with open(CONF.TEXT_CWS_PATH+'_'+str(pid), 'r', encoding = 'utf8')as infile:
         for line in infile:
             line = line.strip('\n')
             words = line.split('\t')
@@ -102,7 +102,7 @@ def grammar_analysis(text_list, term2entity, va2attributes, term2attributes,
 
     # LTP词性判断
 
-    with open(CONF.TEXT_CWS_PATH, 'w', encoding = 'utf8')as outfile:
+    with open(CONF.TEXT_CWS_PATH+'_'+str(pid), 'w', encoding = 'utf8')as outfile:
         for words in words_list:
             for word in words:
                 outfile.write(word + '\t')
@@ -110,10 +110,10 @@ def grammar_analysis(text_list, term2entity, va2attributes, term2attributes,
         outfile.close()
 
     ltp_commend(commend_name=CONF_LTP.LTP_POS_NAME, num_threads=CONF_LTP.LTP_CWS_THREAD,
-                input_path=CONF.TEXT_CWS_PATH, output_path=CONF.TEXT_POS_PATH)
+                input_path=CONF.TEXT_CWS_PATH+'_'+str(pid), output_path=CONF.TEXT_POS_PATH+'_'+str(pid),pid=pid)
 
     postags_list = []
-    with open(CONF.TEXT_POS_PATH, 'r', encoding = 'utf8')as infile:
+    with open(CONF.TEXT_POS_PATH+'_'+str(pid), 'r', encoding = 'utf8')as infile:
         for line in infile:
             postags = []
             line = line.strip('\n')
@@ -139,7 +139,7 @@ def grammar_analysis(text_list, term2entity, va2attributes, term2attributes,
 
     # LTP词语关系判断
 
-    with open(CONF.TEXT_POS_PATH, 'w', encoding = 'utf8')as outfile:
+    with open(CONF.TEXT_POS_PATH+'_'+str(pid), 'w', encoding = 'utf8')as outfile:
         for postags in postags_list:
             for postag in postags:
                 outfile.write(postag[0] + '_' + postag[1] + '\t')
@@ -147,10 +147,10 @@ def grammar_analysis(text_list, term2entity, va2attributes, term2attributes,
         outfile.close()
 
     ltp_commend(commend_name=CONF_LTP.LTP_PAR_NAME, num_threads=CONF_LTP.LTP_CWS_THREAD,
-                input_path=CONF.TEXT_POS_PATH, output_path=CONF.TEXT_PAR_PATH)
+                input_path=CONF.TEXT_POS_PATH+'_'+str(pid), output_path=CONF.TEXT_PAR_PATH+'_'+str(pid),pid=pid)
 
     arcs_list = []
-    with open(CONF.TEXT_PAR_PATH, 'r', encoding = 'utf8')as infile:
+    with open(CONF.TEXT_PAR_PATH+'_'+str(pid), 'r', encoding = 'utf8')as infile:
         arcs = []
         for line in infile:
             line = line.strip('\n')

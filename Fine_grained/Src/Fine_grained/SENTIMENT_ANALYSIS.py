@@ -9,13 +9,11 @@ imp.reload(sys)
 import re
 from . import STATE
 import copy
-import gensim
 import numpy as np
-from .CONFIG import CONF
-import global_var as gl
+# from .CONFIG import CONF
 # 否定词前缀
 NEGATION_WORDS = {'不', '无', '没', '没有', '不是', '不大', '不太'}
-
+stdout=False
 
 class Phase:
     def __init__(self, states_list, confidence):
@@ -23,7 +21,7 @@ class Phase:
         self.confidence = confidence
 
 
-def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, va2attributes, term2attributes,
+def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2entity, va2attributes, term2attributes,
                        sorted_unique_words, sorted_unique_words_entities,
                        sorted_unique_words_attributes, sorted_unique_words_va,
                        entity2term, attributes2term, va2confidence):
@@ -111,7 +109,7 @@ def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, 
 
                 # 在句子里根据attribute找entity
                 this_entity_name, this_entity_num = _get_this_entity(this_attribute_num)
-                if (this_entity_name == None):
+                if (this_entity_name == None )& stdout:
                     print('Not found entity! The attribute is ', this_attribute_name, '.\tThe va is ', this_va)
                 got_score = True
 
@@ -123,7 +121,7 @@ def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, 
 
                 # 在句子里根据entity找attribute
                 this_attribute_name, this_attribute_num = _get_this_attribute(this_entity_num)
-                if (this_entity_name == None):
+                if (this_entity_name == None) & stdout:
                     print('Not found entity! The attribute is ', this_attribute_name, '.\tThe va is ', this_va)
                 got_score = True
 
@@ -139,7 +137,7 @@ def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, 
 
                 # 在句子里根据attribute找entity
                 this_entity_name, this_entity_num = _get_this_entity(this_attribute_num)
-                if (this_entity_name == None):
+                if (this_entity_name == None) & stdout:
                     print('Not found entity! The attribute is ', this_attribute_name, '.\tThe va is ', this_va)
                 got_score = True
 
@@ -151,7 +149,7 @@ def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, 
 
                 # 在句子里根据entity找attribute
                 this_attribute_name, this_attribute_num = _get_this_attribute(this_entity_num)
-                if (this_entity_name == None):
+                if (this_entity_name == None) & stdout:
                     print('Not found entity! The attribute is ', this_attribute_name, '.\tThe va is ', this_va)
                 got_score = True
 
@@ -165,7 +163,7 @@ def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, 
 
                 # 在句子里根据attribute找entity
                 this_entity_name, this_entity_num = _get_this_entity(this_attribute_num)
-                if (this_entity_name == None):
+                if (this_entity_name == None) & stdout:
                     print('Not found entity! The attribute is ', this_attribute_name, '.\tThe va is ', this_va)
                 got_score = True
 
@@ -177,7 +175,7 @@ def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, 
 
                 # 在句子里根据entity找attribute
                 this_attribute_name, this_attribute_num = _get_this_attribute(this_entity_num)
-                if (this_entity_name == None):
+                if (this_entity_name == None) & stdout:
                     print('Not found entity! The attribute is ', this_attribute_name, '.\tThe va is ', this_va)
                 got_score = True
 
@@ -292,7 +290,8 @@ def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, 
                     for x in entities:
                         for y in x.attributes:
                             if _get_score(y.name, this_va) != None:
-                                print("danger!!! changing the entity")
+                                if stdout:
+                                    print("danger!!! changing the entity")
                                 states.add(
                                     STATE.State(this_entity_name=x.name,
                                                 this_attribute_name=y.name,
@@ -440,7 +439,7 @@ def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, 
                           '\tscore ', score, '\tconfidence %.5f\tconfidence not enough!' % confidence)'''
 
     # model = gensim.models.Word2Vec.load(CONF.WORD2VEC_PATH)
-    model = gl.get_value('WORD2VEC_MODEL')
+    # model = gl.get_value('WORD2VEC_MODEL')
     phase = list()
     for idx, this_phase in enumerate(phases):
         last_phase = phase
@@ -483,12 +482,12 @@ def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, 
 
     phase.sort(key=lambda x: x.confidence, reverse=True)
     if len(phase)==0:
-        print('\nno result\n')
+        if stdout:
+            print('\nno result\n')
         return []
     phase = phase[0]
-
-    print('\nresult:\n')
-
-    for y in phase.states_list:
-        print(y.this_entity_name, y.this_attribute_name, y.this_va, y.confidence, y.text)
+    if stdout:
+        print('\nresult:\n')
+        for y in phase.states_list:
+            print(y.this_entity_name, y.this_attribute_name, y.this_va, y.confidence, y.text)
     return phase.states_list

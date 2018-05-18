@@ -8,8 +8,6 @@ import numpy as np
 import imp
 import json
 import random
-import global_var as gl
-gl._init()
 import matplotlib.pyplot as plt
 import jieba
 from PIL import Image
@@ -24,8 +22,9 @@ from flask_uploads import UploadSet, configure_uploads, TEXT, patch_request_clas
 from wtforms import SubmitField, TextAreaField
 from collections import defaultdict
 from werkzeug.utils import secure_filename
-from Fine_grained.Src.Fine_grained.FINE_GRAINED import init, analysis_comment
+
 from Fine_grained.Src.Fine_grained.CONFIG import CONF
+from multiprocessing import  cpu_count
 # from fine_grained import init, analysis_comment
 from summary import gen_summary
 # 不显示server输出
@@ -37,14 +36,24 @@ import logging
 # 你可以通过font_path参数来设置字体集
 
 # background_color参数为设置背景颜色,默认颜色为黑色
+from global_var import GLOBAL_VAR
+from Fine_grained.Src.Fine_grained.FINE_GRAINED import init_knowledge_base, analysis_comment
+from global_var import gl
 
 
+def init():
+    gl.set_value('STDOUT', False)
+    gl.set_value('PROGRESS', 0)  # 后端分析进度百分比
+    gl.set_value('STATE', 'free')
+    gl.set_value('WORD2VEC_MODEL', gensim.models.Word2Vec.load(CONF.WORD2VEC_PATH))
+    init_data=init_knowledge_base()
+    gl.set_value('PROFILE_TREE',None)
+    gl.set_value('ENT_ATTR_POLAR',None)
+    gl.set_value('ENT_ATTR_TEXT',None)
+    gl.set_value('ENT_POLAR',None)
+    gl.set_value('ENT_POLAR_INCLUDE_CHILDREN',None)
+    gl.set_value('INIT_DATA',init_data)
 
-
-
-gl.set_value('PROGRESS', 0)  # 后端分析进度百分比
-gl.set_value('STATE', 'free')
-gl.set_value('WORD2VEC_MODEL',gensim.models.Word2Vec.load(CONF.WORD2VEC_PATH))
 
 imp.reload(sys)
 sys.path.append("..")
@@ -55,7 +64,6 @@ log.setLevel(logging.ERROR)
 
 # from utils.misc_utils import get_args_info
 
-basedir = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__)
 bootstrap = Bootstrap(app)
@@ -64,23 +72,11 @@ app.config['UPLOADED_TEXTS_DEST'] = './uploads'
 UPLOAD_FOLDER = './uploads'
 ALLOWED_EXTENSIONS = set(['txt'])
 
-# _NAME = 'AI'
-# _STAMP = get_args_info(_NAME)
-# re_file = open('logs/' + _STAMP + '.txt', 'w')
 
 texts = UploadSet('texts', TEXT)
 configure_uploads(app, texts)
 patch_request_class(app)  # 文件大小限制，默认为16MB
 
-use_nn = False
-# init_data = init(use_nn=use_nn)
-init_data=init()
-
-profile_tree = None
-ent_attr_polar = None
-ent_attr_text = None
-ent_polar = None
-ent_polar_include_children = None
 
 
 def word_cloud_generate(upload_file_name, in_img_path=u'static/WebTemplate/images/car.jpg',
@@ -135,7 +131,7 @@ class SimpleGroupedColorFunc(object):
 
 def word_cloud_generate(in_img_path=u'static/WebTemplate/images/car.jpg',
                         font_path=r'static/WebTemplate/fonts/msyh.ttc'):
-    global ent_polar_include_children
+    ent_polar_include_children=gl.get_value('ENT_POLAR_INCLUDE_CHILDREN')
     word_freq = dict()
     color2words = dict()
     for ent, polar_include_children in ent_polar_include_children.items():
@@ -397,13 +393,13 @@ def get_product():
 
 @app.route('/changeProduct', methods=['GET', 'POST'])
 def change_product():
-    global init_data
     product = request.args.get('product')
     gl.set_value('PRODUCT', product)
     # init_data = init(use_nn=use_nn)
-    CONF.__init__()
-    init_data = init()
+    CONF.__init__(gl.get_value('PRODUCT'))
+    init_data = init_knowledge_base()
     knowledge_base_init()
+    gl.set_value('INIT_DATA',init_data)
     return product
 
 
@@ -445,7 +441,6 @@ def analysis():
     upload_error = None
     single_results = None
     state_list = None
-    global profile_tree
 
     entity_pair = gl.get_value('ENTITY_PAIR', None)
     if entity_pair is None:
@@ -456,10 +451,11 @@ def analysis():
         if form.submit_text.data:
             input_text = form.text.data
             # sentiments, single_pairs = analysis_comment(text=input_text, debug=True, **init_data)
-            sentiments, state_list = analysis_comment(text=input_text, debug=True, init_data=init_data)
+            sentiments, state_list = analysis_comment(text=input_text,model=gl.get_value('WORD2VEC_MODEL'), init_data=gl.get_value('INIT_DATA'))
             # state_list = list(set([tuple(t) for t in state_list]))
-            for state in state_list:
-                print(state.this_entity_name + ' ' + state.this_attribute_name + ' ' + state.this_va + ' ' + str(state.this_score) + ' ' + state.text+' '+str(state.confidence))
+            if gl.get_value('STDOUT',False):
+                for state in state_list:
+                    print(state.this_entity_name + ' ' + state.this_attribute_name + ' ' + state.this_va + ' ' + str(state.this_score) + ' ' + state.text+' '+str(state.confidence))
             input_text = form.text.data
             single_results = single_analysis_results(state_list, entity_pair, entity_level)
         elif form.submit_file.data:
@@ -468,14 +464,18 @@ def analysis():
                 gl.set_value('UPLOAD_FILE_PATH', filename)
                 file_url = texts.url(filename)
                 print(file_url)
-                global ent_attr_polar, ent_attr_text, ent_polar_include_children
+                gl.set_value('PROGRESS',0)
                 gl.set_value('STATE', 'busy')
-                ent_attr_polar, ent_attr_text, download_filepath = gen_summary(filename=filename, use_nn=use_nn,
-                                                                               init_data=init_data)
+                ent_attr_polar, ent_attr_text, download_filepath = gen_summary(filename=filename,thread_num=6)
+                gl.set_value('ENT_ATTR_POLAR',ent_attr_polar)
+                gl.set_value('ENT_ATTR_TEXT',ent_attr_text)
+
                 # word_cloud_generate(filename)
                 profile_tree = multi_analysis_result(entity_pair)
                 ent_polar_include_children = dict()
                 compute_polar_include_children(profile_tree, ent_polar_include_children)
+                gl.set_value('PROFILE_TREE',profile_tree)
+                gl.set_value('ENT_POLAR_INCLUDE_CHILDREN',ent_polar_include_children)
                 word_cloud_generate()
                 gl.set_value('DOWNLOAD_FILE_PATH', 'downloads/' + download_filepath)
                 file = open('static/result_json/' + filename + '.js', 'wb')
@@ -494,7 +494,7 @@ def analysis():
                            download_filepath=gl.get_value('DOWNLOAD_FILE_PATH', None),
                            single_results=single_results, state_list=state_list,
                            upload_file_name=gl.get_value('UPLOAD_FILE_PATH', None),
-                           profile_tree=profile_tree,
+                           profile_tree=gl.get_value('PROFILE_TREE',None),
                            ent=ent,
                            product=gl.get_value('PRODUCT','汽车'))
 
@@ -542,7 +542,9 @@ def detail():
 
 
 def build_attr_tree(ent, sample_num):
-    global ent_polar, ent_attr_polar, ent_attr_text
+    ent_attr_polar = gl.get_value('ENT_ATTR_POLAR')
+    ent_attr_text = gl.get_value('ENT_ATTR_TEXT')
+    ent_polar = gl.get_value('ENT_POLAR')
     root = {'name': ent, 'id': 1, 'pos': ent_polar[ent][0], 'neu': ent_polar[ent][1], 'neg': ent_polar[ent][2],
             'child': [], 'type': 'entity'}
     id = 1
@@ -795,7 +797,8 @@ def multi_analysis_function(multi_review_path):
 
 
 def multi_analysis_result(entity_pair):
-    global ent_attr_polar, ent_attr_text, ent_polar
+    ent_attr_polar=gl.get_value('ENT_ATTR_POLAR',None)
+    ent_attr_text=gl.get_value('ENT_ATTR_TEXT',None)
     ent_polar = dict()
     ent_text = dict()
     ent_attribute = dict()
@@ -826,12 +829,12 @@ def multi_analysis_result(entity_pair):
             'pos_sentence': ' || '.join(ent_text[product][0]), 'neu_sentence': ' || '.join(ent_text[product][1]),
             'neg_sentence': ' || '.join(ent_text[product][2]), 'child': [], 'type': 'entity'}
     id = 1
-    _ = build_tree(entity_pair, root, ent_text, id)
+    _ = build_tree(entity_pair, root, ent_text, id,ent_polar)
+    gl.set_value('ENT_POLAR',ent_polar)
     return root
 
 
-def build_tree(entity_pair, node, ent_text, id):
-    global ent_polar
+def build_tree(entity_pair, node, ent_text, id,ent_polar):
     for parent, child, level in entity_pair:
         if parent == node['name']:
             id = id + 1
@@ -843,12 +846,12 @@ def build_tree(entity_pair, node, ent_text, id):
                         'neu_sentence': ' || '.join(ent_text[child][1]),
                         'neg_sentence': ' || '.join(ent_text[child][2]), 'child': [], 'type': 'entity'}
             node['child'].append(new_node)
-            id = build_tree(entity_pair, new_node, ent_text, id)
+            id = build_tree(entity_pair, new_node, ent_text, id,ent_polar)
     return id
 
 
 def compute_polar_include_children(root, ent_polar_include_children):
-    global ent_polar
+    ent_polar=gl.get_value('ENT_POLAR')
     node_name = root['name']
     polar_include_children = ent_polar[node_name]
     for child_node in root['child']:
@@ -859,7 +862,7 @@ def compute_polar_include_children(root, ent_polar_include_children):
 
 
 def compute_attr_polar():
-    global ent_attr_polar
+    ent_attr_polar=gl.get_value('ENT_ATTR_POLAR')
     attr_polar = dict()
     for ent_attr, polar in ent_attr_polar.items():
         attr = ent_attr.split('-')[1]
@@ -908,141 +911,8 @@ def single_analysis_results(state_list, entity_pair, entity_level):
     return results
 
 
-@app.route('/home', methods=['GET', 'POST'])
-def homepage():
-    # form = SentimentForm()
-    form = TrainingForm()
-    input_text = None
-    result_list = None
-    filename = None
-    upload_error = None
-    download_filepath = None
-    table = None
-    entity_pair = None
-    entity_attr = None
-    entity_synonym = None
-    attr_synonym = None
-    input_text1 = None
-    opinion_pair = None
-    single_results = None
-    entity_level = None
-    entity_profile = None
-    show_aspect_graph = False
-    multi_analysis = None
-    global profile_tree
-    entity_pair, entity_level = read_aspect_file('./KnowledgeBase/whole-part.txt')
-    entity_attr, _ = read_aspect_file('./KnowledgeBase/entity-attribute.txt', entity_level)
-    entity_synonym, _ = read_aspect_file('./KnowledgeBase/entity-synonym.txt', entity_level)
-    attr_synonym, _ = read_aspect_file('./KnowledgeBase/attribute-synonym.txt')
-    opinion_pair = read_opinion_file('./KnowledgeBase/attribute-description.txt')
-    if form.is_submitted():
-        if form.submit_text.data:
-            input_text = form.text.data
-            sentiments, single_pairs = analysis_comment(text=input_text, debug=True, use_nn=use_nn, **init_data)
-            # result_list = [sentiments]
-            single_pairs = list(set([tuple(t) for t in single_pairs]))
-            for ent, attr, describ, polar, text in single_pairs:
-                print(ent + ' ' + attr + ' ' + describ + ' ' + str(polar) + ' ' + text)
-            show_aspect_graph = False
-            input_text = form.text.data
-            single_results = single_analysis_results(single_pairs, entity_pair, entity_level)
-        elif form.submit_file.data:
-            try:
-                filename = texts.save(form.file.data)
-                file_url = texts.url(filename)
-                print(file_url)
-                global ent_attr_polar, ent_attr_text
-                gl.set_value('STATE', 'busy')
-                ent_attr_polar, ent_attr_text, download_filepath = gen_summary(filename=filename, use_nn=use_nn,
-                                                                               init_data=init_data)
-                profile_tree = multi_analysis_result(entity_pair)
-                download_filepath = 'downloads/' + download_filepath
-                gl.set_value('UPLOAD_FILE_PATH', filename)
-                file = open('static/result_json/' + filename + '.js', 'wb')
-                file.write(('var data=new Array();\ndata[\'全部\']=\'' + json.dumps(profile_tree) + '\';').replace('\\"',
-                                                                                                                 '\\\\"').encode(
-                    'utf-8'))
-                file.close()
-                # menu(profile_tree)
-                # return send_from_directory('static', 'downloads/' + download_filepath)
-            except UploadNotAllowed as una:
-                upload_error = 'error!'
-                print(una)
-        # if form.submit_text.data:
-        #     show_aspect_graph = True
-        #     input_text = form.text.data
-        #     single_pairs = single_analysis_function(input_text)
-        #     single_results = single_analysis_results(single_pairs, entity_pair, entity_level)
-        #     # _, sentiments, _, _, _ = analysis_comment(input_text, debug=True, file=re_file, use_nn=use_nn, **init_data)
-        #     # result_list = [sentiments]
-        elif form.submit_file.data:
-            show_aspect_graph = False
-            file = request.files['file']
-            filename = secure_filename(file.filename)
-            file.save(UPLOAD_FOLDER + '/' + filename)
-            multi_analysis = multi_analysis_function(UPLOAD_FOLDER + '/' + filename)
-            entity_profile = entity_profile_dict(multi_analysis)
-            try:
-                filename = texts.save(form.file.data)
-                file_url = texts.url(filename)
-                print(file_url)
-                table, download_filepath = gen_summary(filename=filename, use_nn=use_nn, init_data=init_data)
-                download_filepath = 'downloads/' + download_filepath
-                # return send_from_directory('static', 'downloads/' + download_filepath)
-            except UploadNotAllowed as una:
-                upload_error = '666'
-                print(una)
-        else:
-            show_aspect_graph = True
-
-
-            # if form.submit_file_opinion_pair.data:
-            #     if entity_pair is None:
-            #         entity_pair, entity_level = read_aspect_file(UPLOAD_FOLDER + '/' + 'entity_default.txt')
-            #         entity_attr, _ = read_aspect_file(UPLOAD_FOLDER + '/' + 'entity_attr_default.txt')
-            #         entity_synonym, _ = read_aspect_file(UPLOAD_FOLDER + '/' + 'entity_synonym_default.txt')
-            #         attr_synonym, _ = read_aspect_file(UPLOAD_FOLDER + '/' + 'attr_synonym_default.txt')
-            # file=request.files['file_opinion_pair']
-            # filename = secure_filename(file.filename)
-            # file.save(UPLOAD_FOLDER+'/'+filename)
-            # opinion_pair,_=read_aspect_file(UPLOAD_FOLDER+'/'+filename)
-            # if form.submit_file_aspect.data:
-            #     try:
-            #         uploaded_files = request.files.getlist("file_aspect")
-            #         filenames = []
-            #         for file in uploaded_files:
-            #             filename = secure_filename(file.filename)
-            #             file.save(UPLOAD_FOLDER+'/'+filename)
-            #             filenames.append(filename)
-            #         if len(filenames)!=4:
-            #             raise UploadNotAllowed
-            #         entity_pair, entity_level = read_aspect_file(UPLOAD_FOLDER + '/' + filenames[3])
-            #         entity_attr, _ = read_aspect_file(UPLOAD_FOLDER + '/' + filenames[2])
-            #         entity_synonym, _ = read_aspect_file(UPLOAD_FOLDER + '/' + filenames[1])
-            #         attr_synonym, _ = read_aspect_file(UPLOAD_FOLDER + '/' + filenames[0])
-            #     except UploadNotAllowed :
-            #             print('上传文件有误！')
-    return render_template('testForm.html', form=form,
-                           input_text=input_text,
-                           input_text1=input_text1,
-                           result_list=result_list,
-                           filename=filename,
-                           upload_error=upload_error,
-                           download_filepath=download_filepath,
-                           table=table,
-                           entity_pair=entity_pair,
-                           entity_attr=entity_attr,
-                           entity_synonym=entity_synonym,
-                           attr_synonym=attr_synonym,
-                           opinion_pair=opinion_pair,
-                           single_results=single_results,
-                           show_aspect_graph=show_aspect_graph,
-                           entity_profile=entity_profile,
-                           multi_analysis=multi_analysis,
-                           profile_tree=profile_tree)
-
-
 if __name__ == '__main__':
     print('Server is running')
+    init()
     # app.run(host='0.0.0.0', debug=True, threaded=True)  # debug=True
     app.run(host='0.0.0.0', debug=False, port=5001, threaded=True)  # debug=True
