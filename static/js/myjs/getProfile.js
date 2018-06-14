@@ -14,13 +14,16 @@ function getProfile(menu_id, ent,upload_file_name) {
             var response = xmlhttp.responseText;
             if (response == 'succeed') {
                 var title = document.getElementById(menu_id + '_title');
-                if (menu_id == "menu_all")
+                var include_children=false;
+                if (menu_id == "menu_all") {
                     title.innerHTML = "产品画像";
+                    include_children=true;
+                }
                 else
                     title.innerHTML = "细节画像——" + ent;
                 loadJS('static/result_json/'+upload_file_name+'.js');
                 loadJS('static/result_json/'+upload_file_name+'_'+ ent +'.js');
-                productProfileInit(menu_id, ent,upload_file_name);
+                productProfileInit(menu_id, ent,upload_file_name,include_children);
             }
             else {
                 alert('服务器响应错误！\n'+response);

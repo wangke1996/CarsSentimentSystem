@@ -4,31 +4,45 @@ from __future__ import print_function
 import os.path
 import sys
 import imp
+
 imp.reload(sys)
-#sys.setdefaultencoding('utf8')
+
+
+# sys.setdefaultencoding('utf8')
 
 class Config(object):
     # 基本设置
-    def __init__(self,product):
+    def __init__(self, product):
         # test comment
         self.TEST_COMMENT = u'''方向盘外观很好看，但手感不太舒适'''
 
         # project path
-        self.PROJECT_PATH = os.path.abspath('./Fine_grained')+'/'
+        self.PROJECT_PATH = os.path.abspath('./Fine_grained') + '/'
 
         # fine_grained path
         self.FINE_GRAINED_PATH = self.PROJECT_PATH + 'Src/Fine_grained/'
 
         # lib path
-        self.LIB_PATH = os.path.abspath('./KnowledgeBase')+'/'+product+'/'
+        self.LIB_PATH = os.path.abspath('./KnowledgeBase') + '/' + product + '/'
         self.WHOLE_PART_PATH = self.LIB_PATH + 'whole-part.txt'
         self.ENTITY_SYNONYM_PATH = self.LIB_PATH + 'entity-synonym.txt'
         self.ATTRIBUTE_DESCRIPTION_PATH = self.LIB_PATH + 'attribute-description.txt'
         self.NA_OUT_PATH = self.LIB_PATH + 'na_out.txt'
         self.ATTRIBUTE_SYNONYM_PATH = self.LIB_PATH + 'attribute-synonym.txt'
         self.ENTITY_ATTRIBUTE_PATH = self.LIB_PATH + 'entity-attribute.txt'
-        self.SUBSET_PATH = self.LIB_PATH+'subset.txt'
+        self.SUBSET_PATH = self.LIB_PATH + 'subset.txt'
 
+        # refine_score path
+        self.ENTITY_DIR = self.PROJECT_PATH + 'score_refine/' + product + '/Experiment_Embedding_entity.txt'
+        self.GOOD_RELATION_DIR = self.PROJECT_PATH + 'score_refine/' + product + '/Experiment_Embedding_relation_good.txt'
+        self.BAD_RELATION_DIR = self.PROJECT_PATH + 'score_refine/' + product + '/Experiment_Embedding_relation_bad.txt'
+        self.NEU_RELATION_DIR = self.PROJECT_PATH + 'score_refine/' + product + '/Experiment_Embedding_relation_neu.txt'
+        self.WEIGHT_DIR = self.PROJECT_PATH + 'score_refine/' + product + '/Experiment_Embedding_weight.txt'
+
+        # unlabeled text path
+        import datetime
+        self.UNLABELED_TEXT_PATH = os.path.abspath(
+            './UnlabeledText' + '/' + product + '/' + datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.txt')
         # word2vec path
         self.WORD2VEC_PATH = self.PROJECT_PATH + 'Word2vec/word2vec_wx'
 

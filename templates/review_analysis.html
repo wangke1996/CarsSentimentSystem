@@ -20,6 +20,7 @@
 		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/productProfileInit.js') }}"></script>
 		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/changeProduct.js') }}"></script>
 		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/getValue.js') }}"></script>
+		<script type="text/javascript" src="/static/js/myjs/progress_qeury.js"></script>
 		<noscript>
 			<link rel="stylesheet" href="{{ url_for('static',filename='WebTemplate/css/skel.css') }}" />
 			<link rel="stylesheet" href="{{ url_for('static',filename='WebTemplate/css/style.css') }}" />
@@ -72,7 +73,7 @@
 							<select name="category" id="category" onchange="changeProduct(this.options[this.options.selectedIndex].value)">
 								<option value="">- 请选择产品类别 -</option>
 								<option value="汽车">汽车</option>
-								<option value="电子">电子</option>
+								<option value="手机">手机</option>
 							</select>
 						</div>
 					</div>
@@ -81,7 +82,7 @@
                     <div class="row">
                         <div class="12u">
                         <section class="box">
-                        
+
                 		<div id='single'>
                         <h3>单条评论解析</h3>
                         {{ wtf.form_field(form.text) }}
@@ -138,7 +139,7 @@
 									{% endfor %}
 								</table>
 							</div>
-                            <script type="text/javascript">  
+                            <script type="text/javascript">
                                 var link_single=new Array();
                                 var i=0;
                                 {% for src,targ,describe,polar,level,sentence in single_results %}
@@ -163,11 +164,11 @@
                         <header>
 						<h3><br>批量评论解析</h3>
 						<p>上传评论文本文件，每行一条评论</p>
-						</header>             
-                                   
+						</header>
+
                         {{ wtf.form_field(form.file) }}
-                        {{ wtf.form_field(form.submit_file) }} 
-                                        
+                        {{ wtf.form_field(form.submit_file) }}
+
                         {% for error in form.file.errors %}
                             <span style="color: red;">{{ error }}</span>
                         {% endfor %}
@@ -175,20 +176,17 @@
                             <span style="color: red;">请提交txt格式的文件！</span>
                         {% endif %}
                         <progress max="100" value="0" id="pg"></progress>
-                        <script type="text/javascript" src="/static/js/myjs/progress_qeury.js"></script>
-                
-                		<div id="result_script">
-							<!--{% if download_filepath %}-->
-							<!--<script type="text/javascript" src="static/json2.js"></script>-->
-							<!--<script type="text/javascript" src="static/result_json/{{ upload_file_name }}.js" charset="utf-8"></script>-->
-							<!--<script type="text/javascript" src="static/result_json/{{ upload_file_name }}_{{ ent }}.js" charset="utf-8"></script>-->
-							<!--{% endif %}-->
-						</div>
-                        &nbsp;
+
                         {% if download_filepath %}
 							<!--<script type="text/javascript" src="/static/getProfile.js"></script>-->
                             <a href="{{ url_for('static', filename=download_filepath) }}">下载分析结果</a>
 							<a href="#menu_all" onclick='getProfile("menu_all","全部","{{ upload_file_name }}")'>分析结果视图</a>
+							{% if keywords %}
+							<p><br/>上传的文件中共有<b><font color="red" size="400">{{keywords['review_num']}}</font></b>条评论,平均每条评论有<b><font color="red" size="300">{{'%.1f'|format(keywords['average_words']|float)}}个字</font></b></p>
+							<p>涉及情感倾向的评论片段共有<b><font color="darkgray" size="400">{{keywords['all_polars'][0]+keywords['all_polars'][1]+keywords['all_polars'][2]}}</font></b>个，其中正面的占<b><font color="lime" size="300">{{'%.1f%%'|format(100*keywords['all_polars'][0]/(keywords['all_polars'][0]+keywords['all_polars'][1]+keywords['all_polars'][2])|float)}}</font></b>，中性的占<b><font color="mediumblue" size="300">{{'%.1f%%'|format(100*keywords['all_polars'][1]/(keywords['all_polars'][0]+keywords['all_polars'][1]+keywords['all_polars'][2])|float)}}</font></b>，负面的占<b><font color="darkred" size="300">{{'%.1f%%'|format(100*keywords['all_polars'][2]/(keywords['all_polars'][0]+keywords['all_polars'][1]+keywords['all_polars'][2])|float)}}</font></b></p>
+							<p>其中，最受好评的部分是<b><font color="lime" size="400">{{keywords['best_entity']}}</font></b>，最受诟病的部分是<b><font color="darkred" size="400">{{keywords['worst_entity']}}</font></b></p>
+                        	<p>大家对<b><font color="blue" size="400">{{keywords['best_attr']}}</font></b>最为满意，有<b><font color="darkgrey" size="200">{{keywords['best_num']}}</font></b>人认为它<b><font color="lime" size="400">{{keywords['top_description_best']}}</font></b>；同时，有<b><font color="darkgrey" size="200">{{keywords['worst_num']}}</font></b>人吐槽<b><font color="blue" size="400">{{keywords['worst_attr']}}</font><font color="darkred" size="400">{{keywords['top_description_worst']}}</font></b></p>
+                            {% endif %}
 							<span class="image fit"><img src="static/result_wordCloud/{{ upload_file_name }}.png" alt="" /></span>
 							<!--<script type="text/javascript" src="/static/productProfileInit.js"></script>-->
                         {% endif %}
@@ -270,39 +268,7 @@
 								<ul id="menu_detail_0"></ul>
 							</div>
 
-
-
-							<!--{% if upload_file_name %}-->
-							<!--<script type="text/javascript" src="static/json2.js"></script>-->
-							<!--<script type="text/javascript" src="static/result_json/{{ upload_file_name }}.js" charset="utf-8"></script>-->
-							<!--<script type="text/javascript" src="static/result_json/{{ upload_file_name }}_{{ ent }}.js" charset="utf-8"></script>-->
-							<!--<script type="text/javascript" src="static/menu_init.js" charset="utf-8"></script>-->
-							<!--<script type="text/javascript">-->
-								<!--menu_init('{{ ent }}');-->
-							<!--</script>-->
-							<!--{% endif %}-->
 						</div>
-
-                        <!--<div id='menu'>-->
-
-                        <!--{% if ent %}-->
-						<!--<hr/>-->
-                        <!--<h3>产品画像——{{ ent }}</h3>-->
-                        <!--{% endif %}-->
-                        <!--<ul id="0">-->
-                        <!--</ul>-->
-                        <!--{% if upload_file_name %}-->
-                        <!--<script type="text/javascript" src="static/json2.js"></script>-->
-                        <!--<script type="text/javascript" src="static/result_json/{{ upload_file_name }}.js" charset="utf-8"></script>-->
-                        <!--<script type="text/javascript" src="static/result_json/{{ upload_file_name }}_{{ ent }}.js" charset="utf-8"></script>-->
-                        <!--<script type="text/javascript" src="static/menu_init.js" charset="utf-8"></script>-->
-                        <!--<script type="text/javascript">-->
-                            <!--menu_init('{{ ent }}');-->
-                        <!--</script>-->
-                        <!--{% endif %}-->
-                        <!--</div>-->
-
-
                         </div>
                         </section>
                         </div>
@@ -310,50 +276,50 @@
                 </form>
 
 			</section>
-			<script type="text/javascript">
-						ids=new Array();
-						ids[0]='menu_all';
-						ids[1]='menu_detail';
-						var x
-						for(x in ids) {
-                            (function (e) {
-                                for (var _obj = document.getElementById(e.id).getElementsByTagName(e.tag), i = -1,
-                                         em; em = _obj[++i];) {
-                                    em.onclick = function () { //onmouseover
-                                        var ul = this.nextSibling;
-                                        if (!ul) {
-                                            return false;
-                                        }
-                                        ul = ul.nextSibling;
-                                        if (!ul) {
-                                            return false;
-                                        }
-                                        if (e.tag != 'a') {
-                                            ul = ul.nextSibling;
-                                            if (!ul) {
-                                                return false;
-                                            }
-                                        } //a 标签控制 隐藏或删除该行
-                                        for (var _li = this.parentNode.parentNode.childNodes, n = -1,
-                                                 li; li = _li[++n];) {
-                                            if (li.tagName == "LI") {
-                                                for (var _ul = li.childNodes, t = -1, $ul; $ul = _ul[++t];) {
-                                                    switch ($ul.tagName) {
-                                                        case "UL":
-                                                            $ul.className = $ul != ul ? "" : ul.className ? "" : "off";
-                                                            break;
-                                                        case "EM":
-                                                            $ul.className = $ul != this ? "" : this.className ? "" : "off";
-                                                            break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            })({id: ids[x], tag: 'em'});
-                        }
-                        </script>
+			<!--<script type="text/javascript">-->
+						<!--ids=new Array();-->
+						<!--ids[0]='menu_all';-->
+						<!--ids[1]='menu_detail';-->
+						<!--var x-->
+						<!--for(x in ids) {-->
+                            <!--(function (e) {-->
+                                <!--for (var _obj = document.getElementById(e.id).getElementsByTagName(e.tag), i = -1,-->
+                                         <!--em; em = _obj[++i];) {-->
+                                    <!--em.onclick = function () { //onmouseover-->
+                                        <!--var ul = this.nextSibling;-->
+                                        <!--if (!ul) {-->
+                                            <!--return false;-->
+                                        <!--}-->
+                                        <!--ul = ul.nextSibling;-->
+                                        <!--if (!ul) {-->
+                                            <!--return false;-->
+                                        <!--}-->
+                                        <!--if (e.tag != 'a') {-->
+                                            <!--ul = ul.nextSibling;-->
+                                            <!--if (!ul) {-->
+                                                <!--return false;-->
+                                            <!--}-->
+                                        <!--} //a 标签控制 隐藏或删除该行-->
+                                        <!--for (var _li = this.parentNode.parentNode.childNodes, n = -1,-->
+                                                 <!--li; li = _li[++n];) {-->
+                                            <!--if (li.tagName == "LI") {-->
+                                                <!--for (var _ul = li.childNodes, t = -1, $ul; $ul = _ul[++t];) {-->
+                                                    <!--switch ($ul.tagName) {-->
+                                                        <!--case "UL":-->
+                                                            <!--$ul.className = $ul != ul ? "" : ul.className ? "" : "off";-->
+                                                            <!--break;-->
+                                                        <!--case "EM":-->
+                                                            <!--$ul.className = $ul != this ? "" : this.className ? "" : "off";-->
+                                                            <!--break;-->
+                                                    <!--}-->
+                                                <!--}-->
+                                            <!--}-->
+                                        <!--}-->
+                                    <!--}-->
+                                <!--}-->
+                            <!--})({id: ids[x], tag: 'em'});-->
+                        <!--}-->
+                        <!--</script>-->
 		<!-- Footer -->
 			<footer id="footer">
 				<ul class="icons">

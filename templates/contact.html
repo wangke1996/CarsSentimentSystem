@@ -13,6 +13,8 @@
 		<script src="static/WebTemplate/js/skel.min.js"></script>
 		<script src="static/WebTemplate/js/skel-layers.min.js"></script>
 		<script src="static/WebTemplate/js/init.js"></script>
+		<script src="static/js/myjs/sendmail.js"></script>
+		<script src="static/js/myjs/getValue.js"></script>
 		<noscript>
 			<link rel="stylesheet" href="static/WebTemplate/css/skel.css" />
 			<link rel="stylesheet" href="static/WebTemplate/css/style.css" />
@@ -60,7 +62,7 @@
 					<p>您在使用本系统过程中有什么疑问？<br>欢迎提出任何意见或建议</p>
 				</header>
 				<div class="box">
-					<form method="post" action="#">
+					<form method="post" action="" >
 						<div class="row uniform half collapse-at-2">
 							<div class="6u">
 								<input type="text" name="name" id="name" value="" placeholder="姓名" />
@@ -82,7 +84,7 @@
 						<div class="row uniform">
 							<div class="12u">
 								<ul class="actions align-center">
-									<li><input type="submit" value="提交反馈" /></li>
+									<li><input type="submit" value="提交反馈" onclick="sendmail()"/></li>
 								</ul>
 							</div>
 						</div>

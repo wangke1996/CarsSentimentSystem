@@ -2,17 +2,14 @@
 网站Demo API模块
 """
 # -*- coding: UTF-8 -*-
-import os
+# import os
 import sys
 import numpy as np
 import imp
 import json
 import random
-import matplotlib.pyplot as plt
-import jieba
-from PIL import Image
-from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
-import gensim
+# import matplotlib.pyplot as plt
+
 from flask import Flask, request, redirect, url_for
 from flask import render_template
 from flask_bootstrap import Bootstrap
@@ -20,11 +17,11 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileField
 from flask_uploads import UploadSet, configure_uploads, TEXT, patch_request_class, UploadNotAllowed
 from wtforms import SubmitField, TextAreaField
-from collections import defaultdict
-from werkzeug.utils import secure_filename
+# from collections import defaultdict
+# from werkzeug.utils import secure_filename
 
 from Fine_grained.Src.Fine_grained.CONFIG import CONF
-from multiprocessing import  cpu_count
+from multiprocessing import cpu_count
 # from fine_grained import init, analysis_comment
 from summary import gen_summary
 # 不显示server输出
@@ -36,28 +33,33 @@ import logging
 # 你可以通过font_path参数来设置字体集
 
 # background_color参数为设置背景颜色,默认颜色为黑色
-from global_var import GLOBAL_VAR
 from Fine_grained.Src.Fine_grained.FINE_GRAINED import init_knowledge_base, analysis_comment
 from global_var import gl
 
 
 def init():
+    import gensim
+    gl.set_value('PRODUCT', '汽车')
     gl.set_value('STDOUT', False)
     gl.set_value('PROGRESS', 0)  # 后端分析进度百分比
     gl.set_value('STATE', 'free')
     gl.set_value('WORD2VEC_MODEL', gensim.models.Word2Vec.load(CONF.WORD2VEC_PATH))
-    init_data=init_knowledge_base()
-    gl.set_value('PROFILE_TREE',None)
-    gl.set_value('ENT_ATTR_POLAR',None)
-    gl.set_value('ENT_ATTR_TEXT',None)
-    gl.set_value('ENT_POLAR',None)
-    gl.set_value('ENT_POLAR_INCLUDE_CHILDREN',None)
-    gl.set_value('INIT_DATA',init_data)
+    init_data = init_knowledge_base()
+    gl.set_value('PROFILE_TREE', None)
+    gl.set_value('ENT_ATTR_POLAR', None)
+    gl.set_value('ENT_ATTR_TEXT', None)
+    gl.set_value('ENT_POLAR', None)
+    gl.set_value('ENT_POLAR_INCLUDE_CHILDREN', None)
+    gl.set_value('INIT_DATA', init_data)
+
+    gl.set_value('SORTED_UNIQUE_WORDS', set())
+    gl.set_value('SORTED_UNIQUE_WORDS_ENTITIES', set())
+    gl.set_value('SORTED_UNIQUE_WORDS_ATTRIBUTES', set())
+    gl.set_value('SORTED_UNIQUE_WORDS_VA', set())
 
 
 imp.reload(sys)
 sys.path.append("..")
-
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
@@ -70,17 +72,55 @@ bootstrap = Bootstrap(app)
 app.config['SECRET_KEY'] = 'AIMindreader'
 app.config['UPLOADED_TEXTS_DEST'] = './uploads'
 UPLOAD_FOLDER = './uploads'
-ALLOWED_EXTENSIONS = set(['txt'])
-
+ALLOWED_EXTENSIONS = set(['txt', 'statelist'])
 
 texts = UploadSet('texts', TEXT)
 configure_uploads(app, texts)
 patch_request_class(app)  # 文件大小限制，默认为16MB
 
 
+@app.route('/send_mail', methods=['GET', 'POST'])
+def send_mail():
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.header import Header
+    from email.utils import formataddr
+    file = open('CONFIG_MAIL.dat', encoding='utf-8')
+    mail_user = file.readline().replace('\n', '').replace('\r', '')
+    mail_pass = file.readline().replace('\n', '').replace('\r', '')
+    file.close()
+    mail_host = "smtp." + mail_user.split('@')[1]  # 设置服务器
+    sender = request.args.get('sender')
+    name = request.args.get('name')
+    # sender='习近平@126.com'
+    subject = request.args.get('subject')
+    # subject='同志们好'
+    text = request.args.get('text')
+    # text='我就无聊了群发个邮件'
+    message = MIMEText(text, 'plain', 'utf-8')
+    message['From'] = formataddr((Header(name, "utf-8").encode(), sender))
+    message['To'] = formataddr((Header("网站系统反馈", 'utf-8').encode(), mail_user))
+    message['Subject'] = Header(subject, 'utf-8')
+    try:
+        smtpObj = smtplib.SMTP()
+        smtpObj.set_debuglevel(1)
+        # smtpObj.ehlo(mail_host)
+        smtpObj.connect(mail_host)
+        smtpObj.login(mail_user.split('@')[0], mail_pass)
+        smtpObj.sendmail(mail_user, [mail_user], message.as_string())
+        # smtpObj.quit()
+        print("邮件发送成功")
+        return '1'
+    except smtplib.SMTPException:
+        print("邮件发送异常")
+        return '-1'
+
 
 def word_cloud_generate(upload_file_name, in_img_path=u'static/WebTemplate/images/car.jpg',
                         font_path=r'static/WebTemplate/fonts/msyh.ttc'):
+    import jieba
+    from PIL import Image
+    from wordcloud import WordCloud, STOPWORDS
     in_text_path = u'uploads/' + upload_file_name
     out_img_path = u'static/result_wordCloud/' + upload_file_name + '.png'
     f = open(in_text_path, 'r', encoding='utf8').read()
@@ -131,27 +171,20 @@ class SimpleGroupedColorFunc(object):
 
 def word_cloud_generate(in_img_path=u'static/WebTemplate/images/car.jpg',
                         font_path=r'static/WebTemplate/fonts/msyh.ttc'):
-    ent_polar_include_children=gl.get_value('ENT_POLAR_INCLUDE_CHILDREN')
+    from PIL import Image
+    from wordcloud import WordCloud
+    ent_polar_include_children = gl.get_value('ENT_POLAR_INCLUDE_CHILDREN')
+    word_freq_polars = gl.get_value('WORD_FREQ')
     word_freq = dict()
     color2words = dict()
-    for ent, polar_include_children in ent_polar_include_children.items():
-        freq = sum(polar_include_children)
+    for word, freq_polar in word_freq_polars.items():
+        freq = sum(freq_polar)
         if freq == 0:
             continue
-        word_freq[ent] = freq
-        color = polar2color(polar_include_children)
-        color2words.setdefault(color, [])
-        # color2words[color]=color2words[color].append(ent)
-        color2words[color].append(ent)
-    attr_polar = compute_attr_polar()
-    for attr, polar in attr_polar.items():
-        freq = sum(polar)
-        if freq == 0:
-            continue
-        word_freq[attr] = freq
-        color = polar2color(polar)
-        color2words.setdefault(color, [])
-        color2words[color].append(attr)
+        word_freq[word] = freq
+        color = polar2color(freq_polar)
+        words = color2words.setdefault(color, [])
+        words.append(word)
 
     grouped_color_func = SimpleGroupedColorFunc(color2words, default_color='grey')
 
@@ -185,7 +218,7 @@ def knowledge_base_init():
     entity_synonym, _ = read_aspect_file('./KnowledgeBase/' + product + '/entity-synonym.txt', entity_level)
     attr_synonym, _ = read_aspect_file('./KnowledgeBase/' + product + '/attribute-synonym.txt')
     opinion_pair = read_opinion_file('./KnowledgeBase/' + product + '/attribute-description.txt')
-    subset = read_subset_file('./KnowledgeBase/'+product+'/subset.txt')
+    subset = read_subset_file('./KnowledgeBase/' + product + '/subset.txt')
     entity_tree = {'name': product, 'child': [], 'id': 1, 'type': 'entity'}
     kb_build_entity(entity_tree, entity_pair, 1)
     gl.set_value('ENTITY_PAIR', entity_pair)
@@ -196,19 +229,42 @@ def knowledge_base_init():
     gl.set_value('OPINION_PAIR', opinion_pair)
     gl.set_value('ENTITY_TREE', entity_tree)
     gl.set_value('SUBSET', subset)
+    gl.set_value('SORTED_UNIQUE_WORDS', set())
+    gl.set_value('SORTED_UNIQUE_WORDS_ENTITIES', set())
+    gl.set_value('SORTED_UNIQUE_WORDS_ATTRIBUTES', set())
+    gl.set_value('SORTED_UNIQUE_WORDS_VA', set())
+    gl.set_value('UNLABELED_TEXT', [])
+
+
+def save_unlabeled_text(unlabeled_text, file_path):
+    if len(unlabeled_text) == 0:
+        return
+    f = open(file_path, 'w', encoding='utf8')
+    f.write('\n'.join(unlabeled_text))
+    f.close()
+
+
+def flush_unlabeled_text():
+    import os, datetime
+    unlabeled_text = gl.get_value('UNLABELED_TEXT', [])
+    save_unlabeled_text(unlabeled_text, CONF.UNLABELED_TEXT_PATH)
+    gl.set_value('UNLABELED_TEXT',[])
+    product = gl.get_value('PRODUCT', '汽车')
+    CONF.UNLABELED_TEXT_PATH = os.path.abspath(
+        './UnlabeledText' + '/' + product + '/' + datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.txt')
 
 
 def knowledge_graph():
-    product=gl.get_value('PRODUCT','汽车')
-    subset=gl.get_value('SUBSET',None)
+    product = gl.get_value('PRODUCT', '汽车')
+    subset = gl.get_value('SUBSET', None)
     if subset is None:
         knowledge_base_init()
-        subset=gl.get_value('SUBSET')
+        subset = gl.get_value('SUBSET')
     file = open('static/kb_json/' + product + '/subset.js', 'wb')
     file.write(
         ('subset=\'' + json.dumps(subset) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
     file.close()
-    subset_nodes=subset['nodes']
+    subset_nodes = subset['nodes']
 
     links = {'entity_entity': [], 'entity_attribute': [], 'entity_synonym': [], 'attribute_synonym': [],
              'attribute_opinion': []}
@@ -263,11 +319,11 @@ def knowledge_graph():
             continue
         type = None
         if polar == 1:
-            type = 'positive describe'
+            type = 'positive description'
         elif polar == -1:
-            type = 'negative describe'
+            type = 'negative description'
         else:
-            type = 'neutral describe'
+            type = 'neutral description'
         links['attribute_opinion'].append(
             {'source': attribute, 'target': opinion, 'type': 'is a ' + type + ' of', 'source_level': attribute_level,
              'target_level': opinion_level})
@@ -395,11 +451,12 @@ def get_product():
 def change_product():
     product = request.args.get('product')
     gl.set_value('PRODUCT', product)
+    flush_unlabeled_text()
     # init_data = init(use_nn=use_nn)
     CONF.__init__(gl.get_value('PRODUCT'))
     init_data = init_knowledge_base()
     knowledge_base_init()
-    gl.set_value('INIT_DATA',init_data)
+    gl.set_value('INIT_DATA', init_data)
     return product
 
 
@@ -441,7 +498,7 @@ def analysis():
     upload_error = None
     single_results = None
     state_list = None
-
+    keywords = None
     entity_pair = gl.get_value('ENTITY_PAIR', None)
     if entity_pair is None:
         knowledge_base_init()
@@ -451,11 +508,14 @@ def analysis():
         if form.submit_text.data:
             input_text = form.text.data
             # sentiments, single_pairs = analysis_comment(text=input_text, debug=True, **init_data)
-            sentiments, state_list = analysis_comment(text=input_text,model=gl.get_value('WORD2VEC_MODEL'), init_data=gl.get_value('INIT_DATA'))
+            sentiments, state_list = analysis_comment(text=input_text, model=gl.get_value('WORD2VEC_MODEL'),
+                                                      init_data=gl.get_value('INIT_DATA'),
+                                                      unlabeled_text=gl.get_value('UNLABELED_TEXT'))
             # state_list = list(set([tuple(t) for t in state_list]))
-            if gl.get_value('STDOUT',False):
+            if gl.get_value('STDOUT', False):
                 for state in state_list:
-                    print(state.this_entity_name + ' ' + state.this_attribute_name + ' ' + state.this_va + ' ' + str(state.this_score) + ' ' + state.text+' '+str(state.confidence))
+                    print(state.this_entity_name + ' ' + state.this_attribute_name + ' ' + state.this_va + ' ' + str(
+                        state.this_score) + ' ' + state.text + ' ' + str(state.confidence))
             input_text = form.text.data
             single_results = single_analysis_results(state_list, entity_pair, entity_level)
         elif form.submit_file.data:
@@ -464,51 +524,61 @@ def analysis():
                 gl.set_value('UPLOAD_FILE_PATH', filename)
                 file_url = texts.url(filename)
                 print(file_url)
-                gl.set_value('PROGRESS',0)
+                gl.set_value('PROGRESS', 0)
                 gl.set_value('STATE', 'busy')
-                ent_attr_polar, ent_attr_text, download_filepath = gen_summary(filename=filename,thread_num=6)
-                gl.set_value('ENT_ATTR_POLAR',ent_attr_polar)
-                gl.set_value('ENT_ATTR_TEXT',ent_attr_text)
-
+                download_filepath = gen_summary(filename=filename)#, thread_num=4)
                 # word_cloud_generate(filename)
                 profile_tree = multi_analysis_result(entity_pair)
                 ent_polar_include_children = dict()
                 compute_polar_include_children(profile_tree, ent_polar_include_children)
-                gl.set_value('PROFILE_TREE',profile_tree)
-                gl.set_value('ENT_POLAR_INCLUDE_CHILDREN',ent_polar_include_children)
+                gl.set_value('PROFILE_TREE', profile_tree)
+                gl.set_value('ENT_POLAR_INCLUDE_CHILDREN', ent_polar_include_children)
+                summary, keywords = brief_summary()
+                # print(summary)
+                gl.set_value('KEYWORDS', keywords)
                 word_cloud_generate()
                 gl.set_value('DOWNLOAD_FILE_PATH', 'downloads/' + download_filepath)
                 file = open('static/result_json/' + filename + '.js', 'wb')
                 file.write(('var data=new Array();\ndata[\'全部\']=\'' + json.dumps(profile_tree) + '\';').replace('\\"',
                                                                                                                  '\\\\"').encode(
                     'utf-8'))
+                file.write(
+                    ('\ndata[\'polars_include_children\']=\'' + json.dumps(ent_polar_include_children) + '\';').replace(
+                        '\\"', '\\\\"').encode('utf-8'))
                 file.close()
                 ent = None
             except UploadNotAllowed as una:
                 upload_error = 'error!'
                 print(una)
+            unlabeled_text = gl.get_value('UNLABELED_TEXT', [])
+            if (len(unlabeled_text) > 100):
+                flush_unlabeled_text()
 
     return render_template('review_analysis.html', form=form,
                            input_text=input_text,
                            upload_error=upload_error,
-                           download_filepath=gl.get_value('DOWNLOAD_FILE_PATH', None),
+                           download_filepath=gl.get_value('DOWNLOAD_FILE_PATH'),
                            single_results=single_results, state_list=state_list,
-                           upload_file_name=gl.get_value('UPLOAD_FILE_PATH', None),
-                           profile_tree=gl.get_value('PROFILE_TREE',None),
+                           upload_file_name=gl.get_value('UPLOAD_FILE_PATH'),
+                           profile_tree=gl.get_value('PROFILE_TREE'),
                            ent=ent,
-                           product=gl.get_value('PRODUCT','汽车'))
+                           product=gl.get_value('PRODUCT', '汽车'),
+                           keywords=gl.get_value('KEYWORDS'))
+
 
 from Fine_grained.Src.Fine_grained.STATE import State
+
+
 @app.route('/test', methods=['GET', 'POST'])
 def test():
-    S1=State()
-    S1.text="just a test"
-    S2=State()
-    S2.text="another test"
-    list=[]
+    S1 = State()
+    S1.text = "just a test"
+    S2 = State()
+    S2.text = "another test"
+    list = []
     list.append(S1)
     list.append(S2)
-    return  render_template('test.html',list=list)
+    return render_template('test.html', list=list)
 
 
 @app.route('/get_progress', methods=['GET', 'POST'])
@@ -670,18 +740,16 @@ def read_opinion_file(file_path):
 
 
 def read_subset_file(file_path):
-    subset_file=open(file_path,encoding='utf8')
-    subset={'nodes':[],'legend_entity':[],'legend_attribute':[],'legend_description':[]}
+    subset_file = open(file_path, encoding='utf8')
+    subset = {'nodes': [], 'legend_entity': [], 'legend_attribute': [], 'legend_description': []}
     try:
-        subset['nodes']=subset_file.readline().split()
-        subset['legend_entity']=subset_file.readline().split()
-        subset['legend_attribute']=subset_file.readline().split()
-        subset['legend_description']=subset_file.readline().split()
+        subset['nodes'] = subset_file.readline().split()
+        subset['legend_entity'] = subset_file.readline().split()
+        subset['legend_attribute'] = subset_file.readline().split()
+        subset['legend_description'] = subset_file.readline().split()
     finally:
         subset_file.close()
     return subset
-
-
 
 
 def single_analysis_function(input_text):
@@ -797,10 +865,12 @@ def multi_analysis_function(multi_review_path):
 
 
 def multi_analysis_result(entity_pair):
-    ent_attr_polar=gl.get_value('ENT_ATTR_POLAR',None)
-    ent_attr_text=gl.get_value('ENT_ATTR_TEXT',None)
+    ent_attr_polar = gl.get_value('ENT_ATTR_POLAR', None)
+    ent_attr_text = gl.get_value('ENT_ATTR_TEXT', None)
     ent_polar = dict()
     ent_text = dict()
+    attr_polar = dict()
+    attr_text = dict()
     ent_attribute = dict()
     for ent_attr, polar in ent_attr_polar.items():
         ent = ent_attr.split('-')[0]
@@ -810,8 +880,18 @@ def multi_analysis_result(entity_pair):
             attrs.append(attr)
             ent_attribute[ent] = attrs
         polars = ent_polar.setdefault(ent, [0, 0, 0])
+        attr_polars = attr_polar.setdefault(attr, [0, 0, 0])
         polars = (np.array(polars) + np.array(polar)).tolist()
+        attr_polars = (np.array(attr_polars) + np.array(polar)).tolist()
         ent_polar[ent] = polars
+        attr_polar[attr] = attr_polars
+        attr_texts = attr_text.setdefault(attr, [[], [], []])
+        txts = ent_attr_text[ent_attr]
+        attr_texts[0].extend(txts[0])
+        attr_texts[1].extend(txts[1])
+        attr_texts[2].extend(txts[2])
+    gl.set_value('ATTR_POLAR', attr_polar)
+    gl.set_value('ATTR_TEXT', attr_text)
     for ent, _ in ent_polar.items():
         txts = ent_text.setdefault(ent, [[], [], []])
         general_txt = ent_attr_text.setdefault(ent + '-' + '整体', [[], [], []])
@@ -824,17 +904,99 @@ def multi_analysis_result(entity_pair):
                         txts[i] = txts[i] + txt
                         break
         ent_text[ent] = txts
-    product=gl.get_value('PRODUCT','汽车')
-    root = {'name': product, 'id': 1, 'pos': ent_polar[product][0], 'neu': ent_polar[product][1], 'neg': ent_polar[product][2],
+    product = gl.get_value('PRODUCT', '汽车')
+    root = {'name': product, 'id': 1, 'pos': ent_polar[product][0], 'neu': ent_polar[product][1],
+            'neg': ent_polar[product][2],
             'pos_sentence': ' || '.join(ent_text[product][0]), 'neu_sentence': ' || '.join(ent_text[product][1]),
             'neg_sentence': ' || '.join(ent_text[product][2]), 'child': [], 'type': 'entity'}
     id = 1
-    _ = build_tree(entity_pair, root, ent_text, id,ent_polar)
-    gl.set_value('ENT_POLAR',ent_polar)
+    _ = build_tree(entity_pair, root, ent_text, id, ent_polar)
+    gl.set_value('ENT_POLAR', ent_polar)
     return root
 
 
-def build_tree(entity_pair, node, ent_text, id,ent_polar):
+def brief_summary():
+    summary = ''
+    # words = 0
+    # review_num = 0
+    # try:
+    #     with open('./uploads/' + gl.get_value('UPLOAD_FILE_PATH'), 'r', encoding='utf8') as fr:
+    #         for line in fr:
+    #             words += len(line.strip())
+    #             review_num += 1
+    # except:
+    #     pass
+    # if review_num == 0:
+    #     review_num = 1
+    review_num = gl.get_value('REVIEW_NUM', 1)
+    words = gl.get_value('WORDS_NUM', 0)
+    summary += '上传的文件中共有%d条评论,平均每条评论有%d个字\n' % (review_num, words / review_num)
+
+    product = gl.get_value('PRODUCT')
+    ent_polar_include_children = gl.get_value('ENT_POLAR_INCLUDE_CHILDREN')
+    all_polars = ent_polar_include_children[product]
+    summary += '涉及情感倾向的评论片段共有%d个，其中正面的占%.1f%%，中性的占%.1f%%，负面的占%.1f%%\n' % (
+        sum(all_polars), 100 * all_polars[0] / sum(all_polars), 100 * all_polars[1] / sum(all_polars),
+        100 * all_polars[2] / sum(all_polars))
+
+    ent_polar = gl.get_value('ENT_POLAR')
+    best_entity = None
+    worst_entity = None
+    best_ent_polars = [0, 0, 0]
+    worst_ent_polars = [0, 0, 0]
+    for ent, polars in ent_polar.items():
+        if ent == product:
+            continue
+        positive = polars[0]
+        negative = polars[2]
+        if positive > best_ent_polars[0] or (positive == best_ent_polars[0] and sum(polars) < sum(best_ent_polars)):
+            best_entity = ent
+            best_ent_polars = polars
+        if negative > worst_ent_polars[2] or (negative == worst_ent_polars[2] and sum(polars) < sum(worst_ent_polars)):
+            worst_entity = ent
+            worst_ent_polars = polars
+    if best_entity is not None and worst_entity is not None:
+        summary += '其中，最受好评的部分是%s，最受诟病的部分是%s\n' % (best_entity, worst_entity)
+
+    attr_description = gl.get_value('ATTR_DESCRIPTION')
+    best_attr = None
+    worst_attr = None
+    best_num = 0
+    worst_num = 0
+    top_description_best = None
+    top_description_worst = None
+    best_attr_polars = [0, 0, 0]
+    worst_attr_polars = [0, 0, 0]
+    for attr, descriptions in attr_description.items():
+        polars = [len(descriptions[0]), len(descriptions[1]), len(descriptions[2])]
+        positive = polars[0]
+        negative = polars[2]
+        if positive > best_attr_polars[0] or (positive == best_attr_polars[0] and sum(polars) < sum(best_attr_polars)):
+            best_attr = attr
+            best_attr_polars = polars
+        if negative > worst_attr_polars[2] or (
+                        negative == worst_attr_polars[2] and sum(polars) < sum(worst_attr_polars)):
+            worst_attr = attr
+            worst_attr_polars = polars
+    if best_attr is not None and worst_attr is not None:
+        best_descriptions = attr_description[best_attr][0]
+        worst_descriptions = attr_description[worst_attr][2]
+        from collections import Counter
+        best = Counter(best_descriptions).most_common(1)
+        worst = Counter(worst_descriptions).most_common(1)
+        best_num = best[0][1]
+        top_description_best = best[0][0]
+        worst_num = worst[0][1]
+        top_description_worst = worst[0][0]
+        summary += '大家对%s最为满意，有%d人认为它%s；同时，有%d人吐槽%s%s\n' % (
+            best_attr, best_num, top_description_best, worst_num, worst_attr, top_description_worst)
+    return summary, {'review_num': review_num, 'average_words': words / review_num, 'all_polars': all_polars,
+                     'best_entity': best_entity, 'worst_entity': worst_entity, 'best_attr': best_attr,
+                     'worst_attr': worst_attr, 'best_num': best_num, 'worst_num': worst_num,
+                     'top_description_worst': top_description_worst, 'top_description_best': top_description_best}
+
+
+def build_tree(entity_pair, node, ent_text, id, ent_polar):
     for parent, child, level in entity_pair:
         if parent == node['name']:
             id = id + 1
@@ -846,23 +1008,26 @@ def build_tree(entity_pair, node, ent_text, id,ent_polar):
                         'neu_sentence': ' || '.join(ent_text[child][1]),
                         'neg_sentence': ' || '.join(ent_text[child][2]), 'child': [], 'type': 'entity'}
             node['child'].append(new_node)
-            id = build_tree(entity_pair, new_node, ent_text, id,ent_polar)
+            id = build_tree(entity_pair, new_node, ent_text, id, ent_polar)
     return id
 
 
 def compute_polar_include_children(root, ent_polar_include_children):
-    ent_polar=gl.get_value('ENT_POLAR')
+    import copy
+    ent_polar = gl.get_value('ENT_POLAR')
     node_name = root['name']
-    polar_include_children = ent_polar[node_name]
+    polar_include_children = copy.deepcopy(ent_polar[node_name])
     for child_node in root['child']:
-        polar_include_children = polar_include_children + compute_polar_include_children(child_node,
-                                                                                         ent_polar_include_children)
+        polar_child = compute_polar_include_children(child_node, ent_polar_include_children)
+        polar_include_children[0] += polar_child[0]
+        polar_include_children[1] += polar_child[1]
+        polar_include_children[2] += polar_child[2]
     ent_polar_include_children[node_name] = polar_include_children
     return polar_include_children
 
 
 def compute_attr_polar():
-    ent_attr_polar=gl.get_value('ENT_ATTR_POLAR')
+    ent_attr_polar = gl.get_value('ENT_ATTR_POLAR')
     attr_polar = dict()
     for ent_attr, polar in ent_attr_polar.items():
         attr = ent_attr.split('-')[1]
