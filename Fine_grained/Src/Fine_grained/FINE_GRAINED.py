@@ -24,7 +24,7 @@ from .SENTIMENT_ANALYSIS import sentiment_analysis
 # from multiprocessing import cpu_count
 # from .CONFIG_LTP import CONF_LTP
 # 记录需要保存的关键词
-def analysis_comment(text, init_data, model, unlabeled_text=[],pid=0):
+def analysis_comment(text, init_data, unlabeled_text=[], pid=0):
     """处理单条评论的api接口
     处理流程：
         - 预处理
@@ -59,6 +59,8 @@ def analysis_comment(text, init_data, model, unlabeled_text=[],pid=0):
     attributes2term = init_data['attributes2term']
     va2confidence = init_data['va2confidence']
     va2polar = init_data['va2polar']
+    similarity_entity = init_data['similarity_entity']
+    similarity_attribute = init_data['similarity_attribute']
     this_entities = copy.deepcopy(entities)
 
     text = clean_text(text)
@@ -73,7 +75,7 @@ def analysis_comment(text, init_data, model, unlabeled_text=[],pid=0):
                                                            sorted_unique_words_va=sorted_unique_words_va)
     # print('grammar analysis by %d process, time use: %ds' % (thread_num, time() - start))
     try:
-        state_list = sentiment_analysis(model=model, text_list=sents, words_list=words_list, arcs_list=arcs_list,
+        state_list = sentiment_analysis(text_list=sents, words_list=words_list, arcs_list=arcs_list,
                                         entities=this_entities,
                                         term2entity=term2entity, va2attributes=va2attributes, va2polar=va2polar,
                                         term2attributes=term2attributes,
@@ -83,7 +85,8 @@ def analysis_comment(text, init_data, model, unlabeled_text=[],pid=0):
                                         sorted_unique_words_va=sorted_unique_words_va,
                                         entity2term=entity2term,
                                         attributes2term=attributes2term,
-                                        va2confidence=va2confidence,unlabeled_text=unlabeled_text)
+                                        va2confidence=va2confidence, unlabeled_text=unlabeled_text,
+                                        similarity_entity=similarity_entity, similarity_attribute=similarity_attribute)
     except Exception as e:
         raise (e)
     # print('pid=%d text=%s' % (pid, text))

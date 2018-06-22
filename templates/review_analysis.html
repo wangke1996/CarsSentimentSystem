@@ -20,6 +20,7 @@
 		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/productProfileInit.js') }}"></script>
 		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/changeProduct.js') }}"></script>
 		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/getValue.js') }}"></script>
+		<script type="text/javascript" src="{{ url_for('static',filename='js/myjs/changePolar.js') }}"></script>
 		<script type="text/javascript" src="/static/js/myjs/progress_qeury.js"></script>
 		<noscript>
 			<link rel="stylesheet" href="{{ url_for('static',filename='WebTemplate/css/skel.css') }}" />
@@ -112,7 +113,16 @@
 											<tr>
 												<td> {{ state.this_entity_name }} </td>
 												<td> {{ state.this_attribute_name }} </td>
-												<td><span style="color: green;"> 正面 </span></td>
+												<td>
+													<div class="select-wrapper">
+													<select style="color: green" onchange="changePolar(this);">
+														<option value="1" style="color: green" selected>正面</option>
+														<option value="0" style="color: orange">中性</option>
+														<option value="-1" style="color: red">负面</option>
+													</select>
+													</div>
+												</td>
+												<!--<td><span style="color: green;"> 正面 </span></td>-->
 												<td><span style="color: green;"> {{ state.this_va }} </span></td>
 												<td><span style="color: green;"> {{ state.text }} </span></td>
 												<td> {{ state.confidence }} </td>
@@ -121,7 +131,16 @@
 											<tr>
 												<td> {{ state.this_entity_name }} </td>
 												<td> {{ state.this_attribute_name }} </td>
-												<td><span style="color: red;"> 负面 </span></td>
+												<td>
+													<div class="select-wrapper">
+													<select style="color: red" onchange="changePolar(this);">
+														<option value="1" style="color: green">正面</option>
+														<option value="0" style="color: orange">中性</option>
+														<option value="-1" style="color: red" selected>负面</option>
+													</select>
+													</div>
+												</td>
+												<!--<td><span style="color: red;"> 负面 </span></td>-->
 												<td><span style="color: red;"> {{ state.this_va }} </span></td>
 												<td><span style="color: red;"> {{ state.text }} </span></td>
 												<td> {{ state.confidence }} </td>
@@ -130,7 +149,16 @@
 											<tr>
 												<td> {{ state.this_entity_name }} </td>
 												<td> {{ state.this_attribute_name }} </td>
-												<td><span style="color:orange;"> 中性 </span></td>
+												<td>
+													<div class="select-wrapper">
+													<select style="color: orange" onchange="changePolar(this);">
+														<option value="1" style="color: green">正面</option>
+														<option value="0" style="color: orange" selected>中性</option>
+														<option value="-1" style="color: red">负面</option>
+													</select>
+													</div>
+												</td>
+												<!--<td><span style="color:orange;"> 中性 </span></td>-->
 												<td><span style="color: orange;"> {{ state.this_va }} </span></td>
 												<td><span style="color: orange;"> {{ state.text }} </span></td>
 												<td> {{ state.confidence }} </td>

@@ -17,13 +17,13 @@ class Config_ltp(object):
 
         self.LTP_PATH = self.PROJECT_PATH + 'Ltp/'
 
-        self.LTP_CWS_NAME = '.\\cws_cmdline'
+        self.LTP_CWS_NAME = self.LTP_PATH+'cws_cmdline'
         self.LTP_CWS_THREAD = '1'
 
-        self.LTP_POS_NAME = '.\\pos_cmdline'
+        self.LTP_POS_NAME = self.LTP_PATH+'pos_cmdline'
         self.LTP_POS_THREAD = '1'
 
-        self.LTP_PAR_NAME = '.\\par_cmdline'
+        self.LTP_PAR_NAME = self.LTP_PATH+'par_cmdline'
         self.LTP_PAR_THREAD = '1'
 
 

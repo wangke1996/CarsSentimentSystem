@@ -25,7 +25,7 @@ def ltp_commend(commend_name, num_threads, input_path, output_path, pid=0):
     # 指令2运行ltp
     command_2 = commend_name + ' --threads ' + num_threads + ' --input ' + input_path + ' > ' + output_path + ' 2>ltp_commend.out_' + str(
         pid)
-    command = command_1 + ' & ' + command_2
+    command = command_1 + ' && ' + command_2
     os.system(command)
 
 

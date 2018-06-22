@@ -10,7 +10,7 @@ def analysis_process(pid, tasks, task_num, state_queue, unlabel_queue, child_con
     process_result = []
     unlabeled_text = []
     init_data = pipe_request(request_queue=request_queue, child_conn=child_conn, id=pid, var_name='INIT_DATA')
-    model = pipe_request(request_queue=request_queue, child_conn=child_conn, id=pid, var_name='WORD2VEC_MODEL')
+    # model = pipe_request(request_queue=request_queue, child_conn=child_conn, id=pid, var_name='WORD2VEC_MODEL')
     from Fine_grained.Src.Fine_grained.sentiment_classify import dic_change
     dic_change(init_data['entity_vector_dic'], init_data['relation_dic'], init_data['weight_dic'])
     while True:
@@ -22,8 +22,7 @@ def analysis_process(pid, tasks, task_num, state_queue, unlabel_queue, child_con
             continue
         pipe_request(request_queue=request_queue, child_conn=child_conn, id=pid, var_name='PROGRESS',
                      value=round(100 * (task_num - tasks.qsize()) / task_num), type='post')
-        _, single_result = analysis_comment(pid=pid, text=text, init_data=init_data, model=model,
-                                            unlabeled_text=unlabeled_text)
+        _, single_result = analysis_comment(pid=pid, text=text, init_data=init_data, unlabeled_text=unlabeled_text)
         process_result.extend(single_result)
     state_queue.put(process_result)
     unlabel_queue.put(unlabeled_text)

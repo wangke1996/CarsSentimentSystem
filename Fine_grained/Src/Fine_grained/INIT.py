@@ -184,6 +184,17 @@ def load_refine(entity_dir, good_relation_dir, bad_relation_dir, neu_relation_di
     return entity_vector_dic, relation_dic, weight_dic
 
 
+def load_similarity(similarity_entity_dir, similarity_attribute_dir):
+    import pickle
+    f = open(similarity_entity_dir, 'rb')
+    similarity_entity = pickle.load(f)
+    f.close()
+    f = open(similarity_attribute_dir, 'rb')
+    similarity_attribute = pickle.load(f)
+    f.close()
+    return similarity_entity, similarity_attribute
+
+
 def init_knowledge_base():
     """初始化语料库等资源"""
 
@@ -196,19 +207,23 @@ def init_knowledge_base():
         entities=entities)
 
     va2attributes, va2confidence, va2polar = load_va(na_out_path=CONF.NA_OUT_PATH,
-                                                     supplement_path=CONF.SUPPLEMENT_ATTRIBUTE_SYNONYM_PATH)
+                                                     supplement_path=CONF.SUPPLEMENT_ATTRIBUTE_DESCRIPTION_PATH)
 
     entity_vector_dic, relation_dic, weight_dic = dic_init(entity_dir=CONF.ENTITY_DIR,
                                                            good_relation_dir=CONF.GOOD_RELATION_DIR,
                                                            bad_relation_dir=CONF.BAD_RELATION_DIR,
                                                            neu_relation_dir=CONF.NEU_RELATION_DIR,
                                                            weight_dir=CONF.WEIGHT_DIR)
+
+    similarity_entity, similarity_attribute = load_similarity(similarity_entity_dir=CONF.SIMILARITY_ENTITY_PATH,
+                                                              similarity_attribute_dir=CONF.SIMILARITY_ATTRIBUTE_PATH)
     print('初始化设置成功！\n')
     # multiprocessing.freeze_support()
     init_data = dict(entities=entities, term2entity=term2entity, va2attributes=va2attributes,
                      term2attributes=term2attributes, entity2term=entity2term, attributes2term=attributes2term,
                      va2confidence=va2confidence, va2polar=va2polar, entity_vector_dic=entity_vector_dic,
-                     relation_dic=relation_dic, weight_dic=weight_dic)
+                     relation_dic=relation_dic, weight_dic=weight_dic, similarity_entity=similarity_entity,
+                     similarity_attribute=similarity_attribute)
     return init_data
     # return {
     #     'entities': entities,

@@ -4,17 +4,21 @@ from __future__ import print_function
 from builtins import str
 import sys
 import imp
+
 imp.reload(sys)
-#sys.setdefaultencoding('utf8')
+# sys.setdefaultencoding('utf8')
 import re
 from . import STATE
 import copy
 import numpy as np
 from .sentiment_classify import rel_predict
+from Fine_grained.Src.Fine_grained.SIMILARITY_PRETRAIN import combine_word
+
 # from .CONFIG import CONF
 # 否定词前缀
 NEGATION_WORDS = {'不', '无', '没', '没有', '不是', '不大', '不太'}
-stdout=False
+stdout = False
+
 
 class Phase:
     def __init__(self, states_list, confidence):
@@ -22,10 +26,12 @@ class Phase:
         self.confidence = confidence
 
 
-def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2entity, va2attributes, va2polar, term2attributes,
+def sentiment_analysis(text_list, words_list, arcs_list, entities, term2entity, va2attributes, va2polar,
+                       term2attributes,
                        sorted_unique_words, sorted_unique_words_entities,
                        sorted_unique_words_attributes, sorted_unique_words_va,
-                       entity2term, attributes2term, va2confidence, unlabeled_text):
+                       entity2term, attributes2term, va2confidence, unlabeled_text, similarity_entity,
+                       similarity_attribute):
     """情感分析模块
     算法思路：根据Dependency Parser的结果，结合一系列预定义的语法规则，抽取情感搭配
     """
@@ -44,21 +50,38 @@ def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2en
                 return x
         return None
 
-    def _get_score(_attribute, _va):
+    def _get_score_old_version(_attribute, _va):
         """由attibute名字及va获得相应score"""
-        score=va2polar.setdefault(_va,None)
-        if score is None or score==-2:
-            score = va2attributes.setdefault((_attribute, _va), None)
+        score = va2polar.setdefault(_va, None) # 判断_va是否是极性固定的描述词
+        if score is None or score == -2:
+            score = va2attributes.setdefault((_attribute, _va), None) # 判断是否知识库已有搭配
         try:
-            score_refine=rel_predict(_attribute,_va)
-        except KeyError as e:
+            score_refine = rel_predict(_attribute, _va) # 用神经网络判断搭配极性
+        except:
             return score
         if score is None:
-            score=-2
-        if score_refine!=score and stdout:
-            print("score_refined! attribute:%s description:%s origin_score:%d refine_score:%d" % (_attribute,_va,score,score_refine))
+            score = -2
+        # 神经网络判断极性与知识库不一致
+        if score_refine != score and stdout:
+            print("score_refined! attribute:%s description:%s origin_score:%d refine_score:%d" % (
+                _attribute, _va, score, score_refine))
         return score_refine
-        # return va2attributes.setdefault((_attribute, _va), None)
+
+    def _get_score(_attribute,_va):
+        # 知识库已有搭配则直接返回
+        score = va2attributes.setdefault((_attribute, _va), None)
+        if score is not None:
+            return score
+        # 否则，判断情感词是否是极性固定情感词
+        score = va2polar.setdefault(_va,None)
+        if score is not None:
+            return score
+        # 否则，用神经网络进行判断
+        try:
+            score=rel_predict(_attribute,_va)
+        except:
+            return None
+        return score
 
     def _get_this_entity(wordnum):
         """根据name获得entity"""
@@ -122,7 +145,7 @@ def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2en
 
                 # 在句子里根据attribute找entity
                 this_entity_name, this_entity_num = _get_this_entity(this_attribute_num)
-                if (this_entity_name == None )& stdout:
+                if (this_entity_name == None) & stdout:
                     print('Not found entity! The attribute is ', this_attribute_name, '.\tThe va is ', this_va)
                 got_score = True
 
@@ -321,16 +344,16 @@ def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2en
         arcs = arcs_list[text_idx]
 
         # 检测是否包含关键词，不包含关键词的语句跳过
-        keywords_va=set()
-        keywords_obj=set()
+        keywords_va = set()
+        keywords_obj = set()
         for word in words:
             if word in sorted_unique_words_va:
                 keywords_va.add(word)
             elif word in sorted_unique_words_attributes or word in sorted_unique_words_entities:
                 keywords_obj.add(word)
-        if len(keywords_va)==0 or len(keywords_obj)==0:
+        if len(keywords_va) == 0 or len(keywords_obj) == 0:
             if stdout:
-                print('无关键词：'+text)
+                print('无关键词：' + text)
             continue
 
         # 对arcs进行预处理
@@ -347,14 +370,14 @@ def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2en
                 negation_logs[parc[1][0]] = parc[2][1] + parc[1][1]
             if parc[0] == 'VOB' and parc[1][1] in NEGATION_WORDS:
                 negation_logs[parc[2][0]] = parc[1][1] + parc[2][1]
-        have_state=False
+        have_state = False
         for parc in parcs:
 
             got_score, this_entity_name, this_attribute_name, this_va, this_va_num = _analysis_parc(parc=parc)
 
             if got_score:
                 # 由已获得的entity attribute va更新entity树
-                have_score=True
+                have_score = True
                 states = set()
 
                 # 置信度
@@ -417,13 +440,14 @@ def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2en
                     # 判断极性
                     state.this_score = _get_score(state.this_attribute_name, state.this_va)
                     if stdout:
-                        print('ent:%s attr:%s score:%s va:%s'%(state.this_entity_name,state.this_attribute_name,state.this_score,state.this_va))
+                        print('ent:%s attr:%s score:%s va:%s' % (
+                            state.this_entity_name, state.this_attribute_name, state.this_score, state.this_va))
                     # 否定score取反
                     if state.this_score:
                         if this_va_num in negation_logs:
-                            state.this_score=state.this_score * -1
-                            state.this_va='不'+state.this_va
-                        # state.this_score = state.this_score * (-1 if this_va_num in negation_logs else 1)
+                            state.this_score = state.this_score * -1
+                            state.this_va = '不' + state.this_va
+                            # state.this_score = state.this_score * (-1 if this_va_num in negation_logs else 1)
 
                 states.add(STATE.State())
 
@@ -434,7 +458,7 @@ def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2en
                 #     phases.append(states)
                 if len(states) > 1:
                     phases.append(states)
-                    have_state=True
+                    have_state = True
 
                 ''''# 获取当前最可能的state信息
                 this_entity_name = states[0].this_entity_name
@@ -472,7 +496,8 @@ def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2en
                           '\tscore ', score, '\tconfidence %.5f\tconfidence not enough!' % confidence)'''
         if not have_state:
             # unlabeled_text.append({'text':text,'description':keywords_va,'object':keywords_obj})
-            unlabeled = "待标注："+text+' '+'description: '+' '.join(keywords_va)+' object: '+' '.join(keywords_obj)
+            unlabeled = "待标注：" + text + ' ' + 'description: ' + ' '.join(keywords_va) + ' object: ' + ' '.join(
+                keywords_obj)
             unlabeled_text.append(unlabeled)
             # print(unlabeled)
     # model = gensim.models.Word2Vec.load(CONF.WORD2VEC_PATH)
@@ -490,27 +515,39 @@ def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2en
                 for last_state in last_phase:
 
                     entity_confidence = 1
-                    if len(last_state.states_list)==0:
+                    if len(last_state.states_list) == 0:
                         bug = True
-                    if (last_state.states_list[-1].this_entity_name in model.wv.index2entity) & (
-                                this_state.this_entity_name in model.wv.index2entity):
-                        entity_confidence = entity_confidence + model.similarity(
-                            # unicode(last_state.states_list[-1].this_entity_name, "utf-8"),
-                            # unicode(this_state.this_entity_name, "utf-8"))
-                            str(last_state.states_list[-1].this_entity_name),
-                            str(this_state.this_entity_name))
+                    try:
+                        entity_confidence = entity_confidence + similarity_entity[
+                            combine_word(str(last_state.states_list[-1].this_entity_name),
+                                         str(this_state.this_entity_name))]
+                    except:
+                        pass
+                    # if (last_state.states_list[-1].this_entity_name in model.wv.index2entity) & (
+                    #             this_state.this_entity_name in model.wv.index2entity):
+                    #     entity_confidence = entity_confidence + model.similarity(
+                    #         # unicode(last_state.states_list[-1].this_entity_name, "utf-8"),
+                    #         # unicode(this_state.this_entity_name, "utf-8"))
+                    #         str(last_state.states_list[-1].this_entity_name),
+                    #         str(this_state.this_entity_name))
 
                     attribute_confidence = 1
-                    if (last_state.states_list[-1].this_attribute_name in model.wv.index2entity) & (
-                                this_state.this_attribute_name in model.wv.index2entity):
-                        attribute_confidence = attribute_confidence + model.similarity(
-                            # unicode(last_state.states_list[-1].this_attribute_name, "utf-8"),
-                            # unicode(this_state.this_attribute_name, "utf-8"))
-                            str(last_state.states_list[-1].this_attribute_name),
-                            str(this_state.this_attribute_name))
+                    try:
+                        attribute_confidence = attribute_confidence + similarity_attribute[
+                            combine_word(str(last_state.states_list[-1].this_attribute_name),
+                                         str(this_state.this_attribute_name))]
+                    except:
+                        pass
+                    # if (last_state.states_list[-1].this_attribute_name in model.wv.index2entity) & (
+                    #             this_state.this_attribute_name in model.wv.index2entity):
+                    #     attribute_confidence = attribute_confidence + model.similarity(
+                    #         # unicode(last_state.states_list[-1].this_attribute_name, "utf-8"),
+                    #         # unicode(this_state.this_attribute_name, "utf-8"))
+                    #         str(last_state.states_list[-1].this_attribute_name),
+                    #         str(this_state.this_attribute_name))
 
                     new_confidence = np.log(last_state.confidence + 1) + np.log(this_state.confidence + 1) + \
-                                     (np.log(entity_confidence + 1e-5) + np.log(attribute_confidence + 1e-5))*10
+                                     (np.log(entity_confidence + 1e-5) + np.log(attribute_confidence + 1e-5)) * 10
                     if new_confidence > new_phase.confidence:
                         new_phase.confidence = new_confidence
                         new_phase.states_list = copy.copy(last_state.states_list)
@@ -518,7 +555,7 @@ def sentiment_analysis(model,text_list, words_list, arcs_list, entities, term2en
                 phase.append(new_phase)
 
     phase.sort(key=lambda x: x.confidence, reverse=True)
-    if len(phase)==0:
+    if len(phase) == 0:
         if stdout:
             print('\nno result\n')
         return []

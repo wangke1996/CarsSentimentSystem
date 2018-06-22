@@ -21,29 +21,32 @@ from wtforms import SubmitField, TextAreaField
 # from werkzeug.utils import secure_filename
 
 from Fine_grained.Src.Fine_grained.CONFIG import CONF
-from multiprocessing import cpu_count
+from psutil import cpu_count
 # from fine_grained import init, analysis_comment
 from summary import gen_summary
 # 不显示server输出
 import logging
-# width,height,margin可以设置图片属性
-
-# generate 可以对全部文本进行自动分词,但是他对中文支持不好,对中文的分词处理请看我的下一篇文章
-# wordcloud = WordCloud(font_path = r'D:\Fonts\simkai.ttf').generate(f)
-# 你可以通过font_path参数来设置字体集
-
-# background_color参数为设置背景颜色,默认颜色为黑色
 from Fine_grained.Src.Fine_grained.FINE_GRAINED import init_knowledge_base, analysis_comment
 from global_var import gl
 
+app = Flask(__name__)
+bootstrap = Bootstrap(app)
+app.config['SECRET_KEY'] = 'AIMindreader'
+app.config['UPLOADED_TEXTS_DEST'] = './uploads'
+UPLOAD_FOLDER = './uploads'
+ALLOWED_EXTENSIONS = set(['txt', 'statelist'])
+thread_num=cpu_count(logical=False)
+texts = UploadSet('texts', TEXT)
+configure_uploads(app, texts)
+patch_request_class(app)  # 文件大小限制，默认为16MB
 
 def init():
-    import gensim
+    # import gensim
     gl.set_value('PRODUCT', '汽车')
     gl.set_value('STDOUT', False)
     gl.set_value('PROGRESS', 0)  # 后端分析进度百分比
     gl.set_value('STATE', 'free')
-    gl.set_value('WORD2VEC_MODEL', gensim.models.Word2Vec.load(CONF.WORD2VEC_PATH))
+    # gl.set_value('WORD2VEC_MODEL', gensim.models.Word2Vec.load(CONF.WORD2VEC_PATH))
     init_data = init_knowledge_base()
     gl.set_value('PROFILE_TREE', None)
     gl.set_value('ENT_ATTR_POLAR', None)
@@ -67,16 +70,21 @@ log.setLevel(logging.ERROR)
 # from utils.misc_utils import get_args_info
 
 
-app = Flask(__name__)
-bootstrap = Bootstrap(app)
-app.config['SECRET_KEY'] = 'AIMindreader'
-app.config['UPLOADED_TEXTS_DEST'] = './uploads'
-UPLOAD_FOLDER = './uploads'
-ALLOWED_EXTENSIONS = set(['txt', 'statelist'])
-
-texts = UploadSet('texts', TEXT)
-configure_uploads(app, texts)
-patch_request_class(app)  # 文件大小限制，默认为16MB
+@app.route('/changePolar', methods=['GET', 'POST'])
+def changePolar():
+    attribute=request.args.get('attribute')
+    description=request.args.get('description')
+    polar=request.args.get('polar')
+    try:
+        supplement_file=open(CONF.SUPPLEMENT_ATTRIBUTE_DESCRIPTION_PATH,'a+',encoding='utf8')
+        supplement_file.write("\n%s\t%s\t%s"%(attribute,polar,description))
+        supplement_file.close()
+        response='感谢您的贡献，让我们的知识库变得更加精准！'
+    except Exception as e:
+        response='修正过程出现异常，请点击右上角 导航->联系我们 反馈此问题'
+        raise(e)
+    finally:
+        return response
 
 
 @app.route('/send_mail', methods=['GET', 'POST'])
@@ -103,7 +111,7 @@ def send_mail():
     message['Subject'] = Header(subject, 'utf-8')
     try:
         smtpObj = smtplib.SMTP()
-        smtpObj.set_debuglevel(1)
+        # smtpObj.set_debuglevel(1)
         # smtpObj.ehlo(mail_host)
         smtpObj.connect(mail_host)
         smtpObj.login(mail_user.split('@')[0], mail_pass)
@@ -508,7 +516,7 @@ def analysis():
         if form.submit_text.data:
             input_text = form.text.data
             # sentiments, single_pairs = analysis_comment(text=input_text, debug=True, **init_data)
-            sentiments, state_list = analysis_comment(text=input_text, model=gl.get_value('WORD2VEC_MODEL'),
+            sentiments, state_list = analysis_comment(text=input_text,
                                                       init_data=gl.get_value('INIT_DATA'),
                                                       unlabeled_text=gl.get_value('UNLABELED_TEXT'))
             # state_list = list(set([tuple(t) for t in state_list]))
@@ -526,7 +534,7 @@ def analysis():
                 print(file_url)
                 gl.set_value('PROGRESS', 0)
                 gl.set_value('STATE', 'busy')
-                download_filepath = gen_summary(filename=filename)#, thread_num=4)
+                download_filepath = gen_summary(filename=filename, thread_num=thread_num)
                 # word_cloud_generate(filename)
                 profile_tree = multi_analysis_result(entity_pair)
                 ent_polar_include_children = dict()
@@ -534,7 +542,7 @@ def analysis():
                 gl.set_value('PROFILE_TREE', profile_tree)
                 gl.set_value('ENT_POLAR_INCLUDE_CHILDREN', ent_polar_include_children)
                 summary, keywords = brief_summary()
-                # print(summary)
+                print(summary)
                 gl.set_value('KEYWORDS', keywords)
                 word_cloud_generate()
                 gl.set_value('DOWNLOAD_FILE_PATH', 'downloads/' + download_filepath)
@@ -1077,6 +1085,13 @@ def single_analysis_results(state_list, entity_pair, entity_level):
 
 
 if __name__ == '__main__':
+    import argparse
+    # global thread_num
+    parser = argparse.ArgumentParser(description='manual to this script')
+    parser.add_argument('--thread', type=int, default=thread_num)
+    args = parser.parse_args()
+    thread_num=args.thread
+    print('thread_num=%d'%(thread_num))
     print('Server is running')
     init()
     # app.run(host='0.0.0.0', debug=True, threaded=True)  # debug=True

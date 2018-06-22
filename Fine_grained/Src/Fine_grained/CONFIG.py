@@ -45,6 +45,9 @@ class Config(object):
             './UnlabeledText' + '/' + product + '/' + datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.txt')
         # word2vec path
         self.WORD2VEC_PATH = self.PROJECT_PATH + 'Word2vec/word2vec_wx'
+        self.SIMILARITY_ENTITY_PATH=self.LIB_PATH+'similarity/similarity_entity.dat'
+        self.SIMILARITY_ATTRIBUTE_PATH=self.LIB_PATH+'similarity/similarity_attribute.dat'
+
 
         # temp path
         self.TEMP_PATH = self.FINE_GRAINED_PATH + 'Temp/'
@@ -58,7 +61,7 @@ class Config(object):
         self.PREFIX_PATH = self.SUPPLEMENT_PATH + 'prefix.txt'
         self.SUFIX_PATH = self.SUPPLEMENT_PATH + 'sufix.txt'
         self.SUB_PATH = self.SUPPLEMENT_PATH + 'sub.txt'
-        self.SUPPLEMENT_ATTRIBUTE_SYNONYM_PATH = self.SUPPLEMENT_PATH + 'attribute-description.txt'
+        self.SUPPLEMENT_ATTRIBUTE_DESCRIPTION_PATH = self.SUPPLEMENT_PATH + 'attribute-description.txt'
 
         self.UNIQUE = 'xxx'
 
