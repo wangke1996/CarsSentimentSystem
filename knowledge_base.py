@@ -18,7 +18,7 @@ class KnowledgeBaseConfig:
         self.JS_CACHE_PATH = os.path.abspath('./static/kb_json')
 
         self.CACHE_PATH = os.path.join(self.LIB_PATH, 'KnowledgeBaseCache.pkl')
-        self.LOAD_FROM_CACHE = True  # load knowledge base from cached pikle file
+        self.LOAD_FROM_CACHE = False  # load knowledge base from cached pikle file
 
 
 class KnowledgeBase:
@@ -38,6 +38,7 @@ class KnowledgeBase:
         self.pairTD = dict()  # Target-Description pair, Key: Target(Entity or Attribute), Value: Set of Descriptions for this target
         self.pairDT = dict()  # Description-Target pair, Key: Description, Value: Set of Target for this Description
         self.pairSentiment = dict()  # Target,Description-Sentiment pair, Key: (Target,Description), Value: Sentiment (POS/NEU/NEG)
+        self.js_cache_path = ""
 
     def save(self, cache_path):
         with open(cache_path, 'wb') as f:
@@ -51,7 +52,7 @@ class KnowledgeBase:
 
     def load_knowledge_base(self, entity_word_dir, attribute_word_dir, description_word_dir, whole_part_dir,
                             entity_attribute_dir, target_description_sentiment_dir, entity_synonym_dir,
-                            attribute_synonym_dir, product_name="汽车"):
+                            attribute_synonym_dir, js_cache_path, product_name="汽车"):
         """
         load Knowledge Base from files
         :param entity_word_dir: 
@@ -66,6 +67,9 @@ class KnowledgeBase:
         :return: 
         """
         self.productName = product_name
+        self.js_cache_path = os.path.join(js_cache_path, self.productName)
+        if os.path.exists(self.js_cache_path) is False:
+            os.makedirs(self.js_cache_path)
 
         def load_word_file(word_file_dir):
             word_set = set()
@@ -151,8 +155,8 @@ class KnowledgeBase:
 
         def check_whole_part_loop():
             while True:
-                path=[]
-                loop_path, loop_flag = self.check_loop_by_dfs(self.productName,path)
+                path = []
+                loop_path, loop_flag = self.check_loop_by_dfs(self.productName, path)
                 del path
                 if loop_flag is False:
                     break
@@ -160,7 +164,8 @@ class KnowledgeBase:
                       " pair (%s, %s) will be removed" % (loop_path[-2], loop_path[-1]))
                 self.remove_whole_part_pair(loop_path[-2], loop_path[-1], True)
 
-        check_whole_part_loop()
+        # check_whole_part_loop()
+        self.write_js_variables(False)
 
     def check_loop_by_dfs(self, entity, path=[]):
         """
@@ -181,6 +186,139 @@ class KnowledgeBase:
                 return child_loop_path, child_loop_flag
         path.pop()
         return [], False
+
+    # ----functions to write js files to save variables for clients---- #
+    def write_js_file(self, json_data, var_name, file_name, over_write=False):
+        file_path = os.path.join(self.js_cache_path, file_name + '.js')
+        if over_write is False and os.path.exists(file_path) is True:
+            return
+        if len(json_data) != len(var_name):
+            print(
+                'Error when try to write file %s, the number of variables not equals to the json data list' % file_path)
+        with open(file_path, 'wb') as f:
+            for name, data in zip(var_name, json_data):
+                f.write((name + '=\'' + json.dumps(data) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
+
+    def write_js_variables(self, over_write=False):
+        # ---- Whole-Part relationship between Entities---- #
+        self.write_whole_part_info(self.productName, 2, 0)
+        # ---- Entity information (Attributes, Synonyms, and (Description, Sentiment) pairs) ---- #
+        for _entity in self.entitySet:
+            self.write_entity_info(_entity, over_write)
+        # ---- Attribute information (Synonyms and (Description, Sentiment) pairs) ---- #
+        for _attribute in self.attributeSet:
+            self.write_attribute_info(_attribute, over_write)
+
+    def write_whole_part_info(self, entity, child_level=1, father_level=0):
+        entity_tree, _ = self.build_whole_part_tree(entity, 1, child_level=child_level, father_level=father_level)
+        if entity_tree is not None:
+            self.write_js_file([entity_tree], ['whole_part'], 'whole_part', True)
+
+    @staticmethod
+    def build_2level_tree(father, children, father_type, children_type):
+        id_num = 1
+        father_node = {'name': father, 'child': [], 'id': id_num, 'type': father_type}
+        for child in children:
+            id_num = id_num + 1
+            child_node = {'name': child, 'child': [], 'id': id_num, 'type': children_type}
+            father_node['child'].append(child_node)
+        return father_node
+
+    def build_whole_part_tree(self, entity, id_num=1, child_level=1, father_level=1):
+        if not self.have_entity(entity, True):
+            print("failed to write whole-part variable: %s is not an entity" % entity)
+            return None
+        root_node = {'name': entity, 'child': [], 'father': [], 'id': id_num, 'type': 'entity'}
+        id_num = id_num + 1
+        if child_level == 0 and father_level == 0:
+            return root_node, id_num
+        if child_level > 0:
+            children = self.children_of_entity(entity, False)
+            for child in children:
+                child_node, id_num = self.build_whole_part_tree(child, id_num, child_level - 1, 0)
+                root_node['child'].append(child_node)
+        if father_level > 0:
+            fathers = self.father_of_entity(entity, False)
+            for father in fathers:
+                father_node, id_num = self.build_whole_part_tree(father, id_num, 0, father_level - 1)
+                root_node['father'].append(father_node)
+        return root_node, id_num
+
+    # todo: rename opinion to description, polar to sentiment, describe to title
+
+    @staticmethod
+    def build_target_sentiment_tree(target, description_sentiment_pairs, target_type):
+        target_node = {'name': target, 'child': [], 'id': 1, 'type': target_type}
+        pos_node = {'name': '正向描述', 'child': [], 'id': 2, 'type': 'describe'}
+        neu_node = {'name': '中性描述', 'child': [], 'id': 3, 'type': 'describe'}
+        neg_node = {'name': '负向描述', 'child': [], 'id': 4, 'type': 'describe'}
+        id = 4
+        for description, sentiment in description_sentiment_pairs:
+            id = id + 1
+            if sentiment == "POS":
+                pos_node['child'].append(
+                    {'name': description, 'child': [], 'id': id, 'type': 'opinion', 'polar': 1})
+            if sentiment == "NEG":
+                neg_node['child'].append(
+                    {'name': description, 'child': [], 'id': id, 'type': 'opinion', 'polar': -1})
+            if sentiment == "NEU":
+                neu_node['child'].append(
+                    {'name': description, 'child': [], 'id': id, 'type': 'opinion', 'polar': 0})
+        target_node['child'].append(pos_node)
+        target_node['child'].append(neu_node)
+        target_node['child'].append(neg_node)
+        return target_node
+
+    def write_entity_info(self, entity, over_write=True):
+        """
+        write entity's information (Attributes, Synonyms, and (Description, Sentiment) pairs) as javascript variables in a js file named by it
+        :param entity: (string) input entity
+        :param over_write: (bool) whether to overwrite exists file
+        :return:
+        """
+        if self.have_entity(entity) is False:
+            # check failure
+            print("failed to write info about %s, it's not an entity" % entity)
+
+        if over_write is False and os.path.exists(os.path.join(self.js_cache_path, entity + '.js')):
+            return
+
+        attributes = self.attributes_of_entity(entity, False)
+        ent_attr = self.build_2level_tree(entity, attributes, 'entity', 'attribute')
+
+        synonyms = self.synonyms_of_entity(entity)
+        ent_synonym = self.build_2level_tree(entity, synonyms, 'entity', 'entity_synonym')
+
+        descriptions = list(self.descriptions_of_target(entity, True))
+        sentiments = [self.sentiment_of_target_description_pair(entity, x) for x in descriptions]
+        ent_sentiment = self.build_target_sentiment_tree(entity, zip(descriptions, sentiments), 'entity')
+
+        self.write_js_file([ent_attr, ent_synonym, ent_sentiment], ['ent_attr', 'ent_synonym', 'ent_sentiment'], entity,
+                      over_write)
+        # todo: add entity_descriptions
+
+    def write_attribute_info(self, attribute, over_write=True):
+        """
+        write attribute's information (Synonyms, and (Description, Sentiment) pairs) as javascript variables in a js file named by it
+        :param attribute: (string) input attribute
+        :param over_write: (bool) whether to overwrite exists file
+        :return:
+        """
+        if self.have_attribute(attribute) is False:
+            # check failure
+            print("failed to write info about %s, it's not an attribute" % attribute)
+
+        if over_write is False and os.path.exists(os.path.join(self.js_cache_path, attribute + '.js')):
+            return
+
+        synonyms = self.synonyms_of_attribute(attribute)
+        attr_synonym = self.build_2level_tree(attribute, synonyms, 'attribute', 'attribute_synonym')
+
+        descriptions = self.descriptions_of_target(attribute, True)
+        sentiments = [self.sentiment_of_target_description_pair(attribute, x) for x in descriptions]
+        attr_opinion = self.build_target_sentiment_tree(attribute, zip(descriptions, sentiments), 'attribute')
+
+        self.write_js_file([attr_synonym, attr_opinion], ['attr_synonym', 'attr_opinion'], attribute, over_write)
 
     # APIs for knowledge base query ----start----
     # todo: database query, sql or others
@@ -1091,141 +1229,12 @@ class KnowledgeBase:
         # APIs for knowledge base modify ----end----
 
 
-class KnowledgeTree:
-    def __init__(self):
-        pass
-
-    def write_js_file(self, json_data, var_name, folder_dir, file_name, over_write=False):
-        file_path = os.path.join(folder_dir, file_name + '.js')
-        if over_write is False and os.path.exists(file_path) is True:
-            return
-        if os.path.exists(folder_dir) is False:
-            os.makedirs(folder_dir)
-        if len(json_data) != len(var_name):
-            print(
-                'Error when try to write file %s, the number of variables not equals to the json data list' % file_path)
-        with open(file_path, 'wb') as f:
-            for name, data in zip(var_name, json_data):
-                f.write((name + '=\'' + json.dumps(data) + '\';').replace('\\"', '\\\\"').encode('utf-8'))
-
-    def load_trees(self, knowledge_base, ouput_dir,over_write=False):
-        folder_dir = os.path.join(ouput_dir, knowledge_base.productName)
-
-        def build_entity_tree(node, id_num):
-            name = node['name']
-            children = knowledge_base.children_of_entity(node['name'], False)
-            for child in children:
-                id_num = id_num + 1
-                child_node = {'name': child, 'child': [], 'id': id_num, 'type': 'entity'}
-                id_num = build_entity_tree(child_node, id_num)
-                node['child'].append(child_node)
-            return id_num
-
-        # ---- Whole-Part relationship between Entities---- #
-        if not os.path.exists(os.path.join(folder_dir, 'whole_part.js')) or over_write is True:
-            entity_tree = {'name': knowledge_base.productName, 'child': [], 'id': 1, 'type': 'entity'}
-            build_entity_tree(entity_tree, 1)
-            self.write_js_file([entity_tree], ['whole_part'], folder_dir, 'whole_part', over_write)
-        entity_tree = {'name': knowledge_base.productName, 'child': [], 'id': 1, 'type': 'entity'}
-        self.write_js_file([entity_tree], ['whole_part'], folder_dir, 'whole_part', True)
-        def build_2level_tree(father, children, father_type, children_type):
-            id_num = 1
-            father_node = {'name': father, 'child': [], 'id': id_num, 'type': father_type}
-            for child in children:
-                id_num = id_num + 1
-                child_node = {'name': child, 'child': [], 'id': id_num, 'type': children_type}
-                father_node['child'].append(child_node)
-            return father_node
-
-        # todo: rename opinion to description, polar to sentiment, describe to title
-        def build_target_sentiment_tree(target, description_sentiment_pairs, target_type):
-            target_node = {'name': target, 'child': [], 'id': 1, 'type': target_type}
-            pos_node = {'name': '正向描述', 'child': [], 'id': 2, 'type': 'describe'}
-            neu_node = {'name': '中性描述', 'child': [], 'id': 3, 'type': 'describe'}
-            neg_node = {'name': '负向描述', 'child': [], 'id': 4, 'type': 'describe'}
-            id = 4
-            for description, sentiment in description_sentiment_pairs:
-                id = id + 1
-                if sentiment == "POS":
-                    pos_node['child'].append(
-                        {'name': description, 'child': [], 'id': id, 'type': 'opinion', 'polar': 1})
-                if sentiment == "NEG":
-                    neg_node['child'].append(
-                        {'name': description, 'child': [], 'id': id, 'type': 'opinion', 'polar': -1})
-                if sentiment == "NEU":
-                    neu_node['child'].append(
-                        {'name': description, 'child': [], 'id': id, 'type': 'opinion', 'polar': 0})
-            target_node['child'].append(pos_node)
-            target_node['child'].append(neu_node)
-            target_node['child'].append(neg_node)
-            return target_node
-
-        def write_entity_info(entity, over_write_flag=True):
-            """
-            write entity's information (Attributes, Synonyms, and (Description, Sentiment) pairs) as javascript variables in a js file named by it 
-            :param entity: (string) input entity
-            :param over_write_flag: (bool) whether to overwrite exists file
-            :return: 
-            """
-            if knowledge_base.have_entity(entity) is False:
-                # check failure
-                print("failed to write info about %s, it's not an entity" % entity)
-
-            if over_write_flag is False and os.path.exists(os.path.join(folder_dir, entity + '.js')):
-                return
-
-            attributes = knowledge_base.attributes_of_entity(entity, False)
-            ent_attr = build_2level_tree(entity, attributes, 'entity', 'attribute')
-
-            synonyms = knowledge_base.synonyms_of_entity(entity)
-            ent_synonym = build_2level_tree(entity, synonyms, 'entity', 'entity_synonym')
-
-            descriptions = list(knowledge_base.descriptions_of_target(entity, True))
-            sentiments=[knowledge_base.sentiment_of_target_description_pair(entity,x) for x in descriptions]
-            ent_sentiment = build_target_sentiment_tree(entity, zip(descriptions,sentiments), 'entity')
-
-            self.write_js_file([ent_attr, ent_synonym, ent_sentiment], ['ent_attr', 'ent_synonym', 'ent_sentiment'],
-                               folder_dir, entity, over_write_flag)
-            # todo: add entity_descriptions
-
-        # ---- Entity information (Attributes, Synonyms, and (Description, Sentiment) pairs) ---- #
-        for _entity in knowledge_base.entitySet:
-            write_entity_info(_entity, over_write)
-
-        def write_attribute_info(attribute, over_write_flag=True):
-            """
-            write attribute's information (Synonyms, and (Description, Sentiment) pairs) as javascript variables in a js file named by it 
-            :param attribute: (string) input attribute
-            :param over_write_flag: (bool) whether to overwrite exists file
-            :return: 
-            """
-            if knowledge_base.have_attribute(attribute) is False:
-                # check failure
-                print("failed to write info about %s, it's not an attribute" % attribute)
-
-            if over_write_flag is False and os.path.exists(os.path.join(folder_dir, attribute + '.js')):
-                return
-
-            synonyms = knowledge_base.synonyms_of_attribute(attribute)
-            attr_synonym = build_2level_tree(attribute, synonyms, 'attribute', 'attribute_synonym')
-
-            descriptions = knowledge_base.descriptions_of_target(attribute, True)
-            sentiments = [knowledge_base.sentiment_of_target_description_pair(attribute, x) for x in descriptions]
-            attr_opinion = build_target_sentiment_tree(attribute, zip(descriptions, sentiments), 'attribute')
-
-            self.write_js_file([attr_synonym, attr_opinion], ['attr_synonym', 'attr_opinion'], folder_dir, attribute,
-                               over_write_flag)
-
-        # ---- Attribute information (Synonyms and (Description, Sentiment) pairs) ---- #
-        for _attribute in knowledge_base.attributeSet:
-            write_attribute_info(_attribute, over_write)
-
-
 def knowledge_base_init(product='汽车'):
     print("Knowledge Base Initializing for product %s..." % product)
     config = KnowledgeBaseConfig(product)
     if config.LOAD_FROM_CACHE and os.path.exists(config.CACHE_PATH):
-        knowledge=KnowledgeBase.load_from_cache(config.CACHE_PATH)
+        knowledge = KnowledgeBase.load_from_cache(config.CACHE_PATH)
+        knowledge.write_js_variables(False)
     else:
         knowledge = KnowledgeBase()
         knowledge.load_knowledge_base(entity_word_dir=config.ENTITY_WORD_PATH,
@@ -1235,9 +1244,8 @@ def knowledge_base_init(product='汽车'):
                                       entity_attribute_dir=config.ENTITY_ATTRIBUTE_PATH,
                                       target_description_sentiment_dir=config.TARGET_DESCRIPTION_SENTIMENT_PATH,
                                       entity_synonym_dir=config.ENTITY_SYNONYM_PATH,
-                                      attribute_synonym_dir=config.ATTRIBUTE_SYNONYM_PATH, product_name=product)
+                                      attribute_synonym_dir=config.ATTRIBUTE_SYNONYM_PATH, product_name=product,
+                                      js_cache_path=config.JS_CACHE_PATH)
         knowledge.save(config.CACHE_PATH)
-    tree = KnowledgeTree()
-    tree.load_trees(knowledge, config.JS_CACHE_PATH)
     print("Knowledge Base Initializing Done")
     return knowledge
