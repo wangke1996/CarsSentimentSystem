@@ -8,10 +8,10 @@ class GLOBAL_VAR:
     def set_value(self, name, value):
         self._global_dict[name] = value
 
-    def get_value(self, name, defValue=None):
+    def get_value(self, name, default_value=None):
         try:
             return self._global_dict[name]
         except KeyError:
-            return defValue
+            return default_value
 
 gl = GLOBAL_VAR()
