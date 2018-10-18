@@ -59,4 +59,5 @@ function knowledgeBaseInit(menu_id){
     function unescapeHTML (a){
         return a.replace(/&lt;|&#60;/g, "<").replace(/&gt;|&#62;/g, ">").replace(/&amp;|&#38;/g, "&").replace(/*/&quot;|*//&#34;/g, '"').replace(/&apos;|&#39;/g, "'");
     }
+
 }

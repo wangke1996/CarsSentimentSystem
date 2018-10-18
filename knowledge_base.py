@@ -136,22 +136,124 @@ class KnowledgeBase:
         load_sentiment()
 
         # check one synonym with different target; check loop path in entity tree;
-        def check_synonyms(synonym_origin_dict, origin_synonym_dict):
-            for synonym, origin_set in synonym_origin_dict.items():
-                if len(origin_set) == 0:
+        def check_synonyms(synonym_origin_dict, origin_synonym_dict, origin_set):
+            for synonym, origins in synonym_origin_dict.items():
+                if len(origins) == 0:
                     print("Error! No entity/attribute has synonym word %s" % synonym)
                 else:
-                    if len(origin_set) > 1:
+                    if len(origins) > 1:
                         print("Error! More than one entities/attributes have the same synonym word %s: " % synonym,
-                              origin_set, " only the first one will be remained")
-                    while len(origin_set) > 1:
-                        origin = origin_set.pop()
+                              origins, " only the first one will be remained")
+                    while len(origins) > 1:
+                        origin = origins.pop()
                         origin_synonym_dict[origin].remove(synonym)
-                    origin = origin_set.pop()
+                    origin = origins.pop()
                     synonym_origin_dict[synonym] = origin
+            # check if origin words of origin_synonym_dict are in origin set. if not, check if one of the synonym is in
+            for origin, synonyms in origin_synonym_dict.items():
+                flag = False
+                if origin in origin_set:
+                    continue
+                for synonym in synonyms:
+                    if synonym in orgin_set:
+                        print("%s is not in origin set, but its synonym %s is in" % (origin, synonym))
+                        synonyms.remove(synonym)
+                        synonyms.add(origin)
+                        origin_synonym_dict.pop(origin)
+                        origin_synonym_dict[synonym] = synonyms
+                        synonym_origin_dict.pop(synonym)
+                        synonym_origin_dict[origin] = synonym
+                        flag = True
+                        break
+                if flag:
+                    continue
+                print("%s and its synonyms art not in the origin set, will be removed" % origin)
+                origin_synonym_dict.pop(origin)
+                for synonym in synonyms:
+                    synonym_origin_dict.pop(synonym)
 
-        check_synonyms(self.pairSE, self.pairES)
-        check_synonyms(self.pairSA, self.pairAS)
+        check_synonyms(self.pairSE, self.pairES, self.entitySet)
+        check_synonyms(self.pairSA, self.pairAS, self.attributeSet)
+
+        def merge_entity():
+            pop_items=[]
+            for origin, synonyms in self.pairES.items():
+                for synonym in synonyms:
+                    if synonym not in self.entitySet:
+                        continue
+                    print("entity %s is synonym of another entity %s, they will be merged" % (origin, synonym))
+                    self.entitySet.remove(synonym)
+                    pop_items.append(synonym)
+                    # entity-attributes pairs merge
+                    attributes = self.pairEA[synonym]
+                    self.pairEA[origin].update(attributes)
+                    for attribute in attributes:
+                        self.pairAE[attribute].remove(synonym)
+                        self.pairAE[attribute].add(origin)
+                    self.pairEA.pop(synonym)
+                    # target-description pairs merge
+                    descriptions = self.pairTD[synonym]
+                    self.pairTD[origin].update(descriptions)
+                    for description in descriptions:
+                        self.pairDT[description].remove(synonym)
+                        self.pairDT[description].add(origin)
+                        sentiment = self.pairSentiment[(synonym, description)]
+                        self.pairSentiment[(origin, description)] = sentiment
+                        self.pairSentiment.pop((synonym, description))
+                    self.pairTD.pop(synonym)
+                    # Whole-part pairs merge
+                    children = self.pairWP[synonym]
+                    for child in children:
+                        if child != origin:
+                            self.pairWP[origin].add(child)
+                            self.pairPW[child].remove(synonym)
+                            self.pairPW[child].add(origin)
+                        else:
+                            self.pairPW[origin].remove(synonym)
+                    self.pairWP.pop(synonym)
+                    fathers = self.pairPW[synonym]
+                    for father in fathers:
+                        if father != origin:
+                            self.pairPW[origin].add(father)
+                            self.pairWP[father].remove(synonym)
+                            self.pairWP[father].add(origin)
+                        else:
+                            self.pairWP[origin].remove(synonym)
+                    self.pairPW.pop(synonym)
+            for item in pop_items:
+                self.pairES.pop(item)
+
+        def merge_attribute():
+            pop_items=[]
+            for origin, synonyms in self.pairAS.items():
+                for synonym in synonyms:
+                    if synonym not in self.attributeSet:
+                        continue
+                    print("attribute %s is synonym of another attribute %s, they will be merged" % (origin, synonym))
+                    self.attributeSet.remove(synonym)
+                    pop_items.append(synonym)
+                    # entity-attribute pairs merge
+                    entities = self.pairAE[synonym]
+                    self.pairAE[origin].update(entities)
+                    for entity in entities:
+                        self.pairEA[entity].remove(synonym)
+                        self.pairEA[entity].add(origin)
+                    self.pairAE.pop(synonym)
+                    # target-description pairs merge
+                    descriptions=self.pairTD[synonym]
+                    self.pairTD[origin].update(descriptions)
+                    for description in descriptions:
+                        self.pairDT[description].remove(synonym)
+                        self.pairDT[description].add(origin)
+                        sentiment = self.pairSentiment[(synonym, description)]
+                        self.pairSentiment[(origin, description)] = sentiment
+                        self.pairSentiment.pop((synonym, description))
+                    self.pairTD.pop(synonym)
+            for item in pop_items:
+                self.pairAS.pop(item)
+
+        merge_entity()
+        merge_attribute()
 
         def check_whole_part_loop():
             while True:
@@ -165,7 +267,7 @@ class KnowledgeBase:
                 self.remove_whole_part_pair(loop_path[-2], loop_path[-1], True)
 
         # check_whole_part_loop()
-        self.write_js_variables(False)
+        self.write_js_variables(True)
 
     def check_loop_by_dfs(self, entity, path=[]):
         """
@@ -212,7 +314,7 @@ class KnowledgeBase:
     def write_whole_part_info(self, entity, child_level=1, father_level=0):
         entity_tree, _ = self.build_whole_part_tree(entity, 1, child_level=child_level, father_level=father_level)
         if entity_tree is not None:
-            self.write_js_file([entity_tree], ['whole_part'], 'whole_part', True)
+            self.write_js_file([entity_tree], ['whole_part'], 'whole_part_%s' % entity, True)
 
     @staticmethod
     def build_2level_tree(father, children, father_type, children_type):
@@ -227,7 +329,7 @@ class KnowledgeBase:
     def build_whole_part_tree(self, entity, id_num=1, child_level=1, father_level=1):
         if not self.have_entity(entity, True):
             print("failed to write whole-part variable: %s is not an entity" % entity)
-            return None
+            return None, id_num
         root_node = {'name': entity, 'child': [], 'father': [], 'id': id_num, 'type': 'entity'}
         id_num = id_num + 1
         if child_level == 0 and father_level == 0:
@@ -294,7 +396,7 @@ class KnowledgeBase:
         ent_sentiment = self.build_target_sentiment_tree(entity, zip(descriptions, sentiments), 'entity')
 
         self.write_js_file([ent_attr, ent_synonym, ent_sentiment], ['ent_attr', 'ent_synonym', 'ent_sentiment'], entity,
-                      over_write)
+                           over_write)
         # todo: add entity_descriptions
 
     def write_attribute_info(self, attribute, over_write=True):
@@ -1234,7 +1336,7 @@ def knowledge_base_init(product='汽车'):
     config = KnowledgeBaseConfig(product)
     if config.LOAD_FROM_CACHE and os.path.exists(config.CACHE_PATH):
         knowledge = KnowledgeBase.load_from_cache(config.CACHE_PATH)
-        knowledge.write_js_variables(False)
+        knowledge.write_js_variables(True)
     else:
         knowledge = KnowledgeBase()
         knowledge.load_knowledge_base(entity_word_dir=config.ENTITY_WORD_PATH,

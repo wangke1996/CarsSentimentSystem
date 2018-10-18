@@ -111,4 +111,5 @@ function productProfileInit(menu_id,ent,upload_file_name,include_children){
             }
         }
     })({id: menu_id, tag: 'em'});
+    
 }
