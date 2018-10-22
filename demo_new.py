@@ -1,7 +1,6 @@
 # -*- coding: UTF-8 -*-
 from flask import Flask, request, render_template, make_response
 
-
 from global_var import gl
 from knowledge_base import knowledge_base_init
 
@@ -18,6 +17,12 @@ def home():
     return render_template('home.html')
 
 
+@app.route('/knowledge_graph_test', methods=['GET', 'POST'])
+def knowledge_graph():
+    product = gl.get_value("PRODUCT", '汽车')
+    return render_template("knowledge_graph.html", product=product)
+
+
 @app.route('/knowledge_base', methods=['GET', 'POST'])
 def kb_graph():
     entity = request.args.get('entity')
@@ -30,7 +35,8 @@ def kb_graph():
     if entity is None:
         entity = knowledge_base.productName
     knowledge_base.write_whole_part_info(entity)
-    resp=make_response(render_template('knowledge_base.html', ent=entity, attr=attribute, product=gl.get_value('PRODUCT', '汽车')))
+    resp = make_response(
+        render_template('knowledge_base.html', ent=entity, attr=attribute, product=gl.get_value('PRODUCT', '汽车')))
     resp.cache_control.max_age = -1
 
     return resp

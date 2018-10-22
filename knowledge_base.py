@@ -176,7 +176,7 @@ class KnowledgeBase:
         check_synonyms(self.pairSA, self.pairAS, self.attributeSet)
 
         def merge_entity():
-            pop_items=[]
+            pop_items = []
             for origin, synonyms in self.pairES.items():
                 for synonym in synonyms:
                     if synonym not in self.entitySet:
@@ -224,7 +224,7 @@ class KnowledgeBase:
                 self.pairES.pop(item)
 
         def merge_attribute():
-            pop_items=[]
+            pop_items = []
             for origin, synonyms in self.pairAS.items():
                 for synonym in synonyms:
                     if synonym not in self.attributeSet:
@@ -240,7 +240,7 @@ class KnowledgeBase:
                         self.pairEA[entity].add(origin)
                     self.pairAE.pop(synonym)
                     # target-description pairs merge
-                    descriptions=self.pairTD[synonym]
+                    descriptions = self.pairTD[synonym]
                     self.pairTD[origin].update(descriptions)
                     for description in descriptions:
                         self.pairDT[description].remove(synonym)
@@ -267,6 +267,7 @@ class KnowledgeBase:
                 self.remove_whole_part_pair(loop_path[-2], loop_path[-1], True)
 
         # check_whole_part_loop()
+
         self.write_js_variables(True)
 
     def check_loop_by_dfs(self, entity, path=[]):
@@ -310,6 +311,8 @@ class KnowledgeBase:
         # ---- Attribute information (Synonyms and (Description, Sentiment) pairs) ---- #
         for _attribute in self.attributeSet:
             self.write_attribute_info(_attribute, over_write)
+        for _description in self.descriptionSet:
+            self.write_description_info(_description, over_write)
 
     def write_whole_part_info(self, entity, child_level=1, father_level=0):
         entity_tree, _ = self.build_whole_part_tree(entity, 1, child_level=child_level, father_level=father_level)
@@ -395,9 +398,41 @@ class KnowledgeBase:
         sentiments = [self.sentiment_of_target_description_pair(entity, x) for x in descriptions]
         ent_sentiment = self.build_target_sentiment_tree(entity, zip(descriptions, sentiments), 'entity')
 
-        self.write_js_file([ent_attr, ent_synonym, ent_sentiment], ['ent_attr', 'ent_synonym', 'ent_sentiment'], entity,
+        synonym_group = {'name': "synonyms", 'children': [{'name': x, 'type': "entity_synonym"} for x in self.pairES[entity]],
+                         'type': "group"}
+        father_group = {'name': "fathers", 'children': [{'name': x, 'type': "entity"} for x in self.pairPW[entity]],
+                        'type': "group"}
+        children_group = {'name': "children", 'children': [{'name': x, 'type': "entity"} for x in self.pairWP[entity]],
+                          'type': "group"}
+        attribute_group = {'name': "attributes", 'children': [{'name': x, 'type': "attribute"} for x in self.pairEA[entity]],
+                           'type': "group"}
+        pos_description_group = {'name': "positive",
+                                 'children': [{'name': x, 'type': "positive_description", 'sentiment': "POS"}
+                                            for x in self.pairTD[entity]
+                                            if self.sentiment_of_target_description_pair(entity, x) == "POS"],
+                                 'type': "group"}
+        neu_description_group = {'name': "neutral",
+                                 'children': [{'name': x, 'type': "neutral_description", 'sentiment': "NEU"}
+                                            for x in self.pairTD[entity]
+                                            if self.sentiment_of_target_description_pair(entity, x) == "NEU"],
+                                 'type': "group"}
+        neg_description_group = {'name': "negative",
+                                 'children': [{'name': x, 'type': "negative_description", 'sentiment': "NEG"}
+                                            for x in self.pairTD[entity]
+                                            if self.sentiment_of_target_description_pair(entity, x) == "NEG"],
+                                 'type': "group"}
+        description_group = {'name': "descriptions",
+
+                             'children': [pos_description_group, neu_description_group, neg_description_group],
+                             'type': "group"}
+
+        entity_graph = [children_group, attribute_group, father_group, description_group, synonym_group]
+
+        self.write_js_file([ent_attr, ent_synonym, ent_sentiment, entity_graph],
+                           ['ent_attr', 'ent_synonym', 'ent_sentiment', 'partial_graph'], entity,
                            over_write)
-        # todo: add entity_descriptions
+
+    # todo: add entity_descriptions
 
     def write_attribute_info(self, attribute, over_write=True):
         """
@@ -420,7 +455,52 @@ class KnowledgeBase:
         sentiments = [self.sentiment_of_target_description_pair(attribute, x) for x in descriptions]
         attr_opinion = self.build_target_sentiment_tree(attribute, zip(descriptions, sentiments), 'attribute')
 
-        self.write_js_file([attr_synonym, attr_opinion], ['attr_synonym', 'attr_opinion'], attribute, over_write)
+        synonym_group = {'name': "synonyms",
+                         'children': [{'name': x, 'type': "attribute_synonym"} for x in self.pairAS[attribute]],
+                         'type': "group"}
+        entity_group = {'name': "entities", 'children': [{'name': x, 'type': "entity"} for x in self.pairAE[attribute]],
+                        'type': "group"}
+        pos_description_group = {'name': "positive",
+                                 'children': [{'name': x, 'type': "positive_description", 'sentiment': "POS"}
+                                            for x in self.pairTD[attribute]
+                                            if self.sentiment_of_target_description_pair(attribute, x) == "POS"],
+                                 'type': "group"}
+        neu_description_group = {'name': "neutral",
+                                 'children': [{'name': x, 'type': "neutral_description", 'sentiment': "NEU"}
+                                            for x in self.pairTD[attribute]
+                                            if self.sentiment_of_target_description_pair(attribute, x) == "NEU"],
+                                 'type': "group"}
+        neg_description_group = {'name': "negative",
+                                 'children': [{'name': x, 'type': "negative_description", 'sentiment': "NEG"}
+                                            for x in self.pairTD[attribute]
+                                            if self.sentiment_of_target_description_pair(attribute, x) == "NEG"],
+                                 'type': "group"}
+        description_group = {'name': "descriptions",
+                             'children': [pos_description_group, neu_description_group, neg_description_group],
+                             'type': "group"}
+        attribute_graph = [entity_group, description_group, synonym_group]
+
+        self.write_js_file([attr_synonym, attr_opinion, attribute_graph],
+                           ['attr_synonym', 'attr_opinion', 'partial_graph'], attribute, over_write)
+
+    def write_description_info(self, description, over_write=True):
+        if not self.have_description(description):
+            print("failed to write info about %s, it's not a description" % description)
+        pos_target_group = {'name': "positive", 'children': [], 'type': "group"}
+        neu_target_group = {'name': "neutral", 'children': [], 'type': "group"}
+        neg_target_group = {'name': "negative", 'children': [], 'type': "group"}
+        targets = self.pairDT[description]
+        for target in targets:
+            target_type = self.target_type(target)
+            sentiment = self.sentiment_of_target_description_pair(target, description)
+            if sentiment == "POS":
+                pos_target_group['children'].append({'name': target, 'type': target_type, 'sentiment': "POS"})
+            if sentiment == "NEU":
+                neu_target_group['children'].append({'name': target, 'type': target_type, 'sentiment': "NEU"})
+            if sentiment == "NEG":
+                neg_target_group['children'].append({'name': target, 'type': target_type, 'sentiment': "NEG"})
+        description_graph = [pos_target_group, neu_target_group, neg_target_group]
+        self.write_js_file([description_graph], ['partial_graph'], description, over_write)
 
     # APIs for knowledge base query ----start----
     # todo: database query, sql or others
@@ -430,7 +510,7 @@ class KnowledgeBase:
         query if the input word is an entity
         :param word: (string) input word
         :param include_synonyms_flag: (bool)whether to include synonyms entities
-        :return: (bool) if the input word is an entity in the knowledge base  
+        :return: (bool) if the input word is an entity in the knowledge base
         """
         have = word in self.entitySet
         if include_synonyms_flag is True:
@@ -442,7 +522,7 @@ class KnowledgeBase:
         query if the input word is an attribute
         :param word: (string) input word
         :param include_synonyms_flag: (bool)whether to include synonyms attributes
-        :return: (bool) if the input word is an attribute in the knowledge base  
+        :return: (bool) if the input word is an attribute in the knowledge base
         """
         have = word in self.attributeSet
         if include_synonyms_flag is True:
@@ -582,7 +662,7 @@ class KnowledgeBase:
             return None
 
     def entity_of_synonym(self, synonym, check_hint=True):
-        """        
+        """
         return the entity of the input synonym word (it could be the entity itself)
         :param synonym: (string) input synonym word
         :param check_hint: (bool) whether to print check failure hints
