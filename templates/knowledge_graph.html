@@ -20,6 +20,26 @@
     </noscript>
     <!--[if lte IE 8]>
     <link rel="stylesheet" href="static/WebTemplate/css/ie/v8.css"/><![endif]-->
+    <link href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css" rel="stylesheet">
+    <style>
+        .selected {
+            color: orange;
+        }
+
+        .node {
+            position: absolute;
+            list-style: none;
+            cursor: default;
+        }
+
+        .node span {
+            margin-right: 3px;
+        }
+
+        .node .caret {
+            font-size: 10px;
+        }
+    </style>
 </head>
 <body>
 <!-- Header -->
@@ -68,10 +88,10 @@
         </style>
     </header>
     <div class="row">
-    <div id="svg_div" class="12u">
-    </div>
-    <div id="ul_div" class="12u">
-    </div>
+        <div id="svg_div" class="12u">
+        </div>
+        <div id="ul_div" class="12u">
+        </div>
     </div>
 
 </section>
