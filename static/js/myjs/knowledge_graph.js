@@ -1,10 +1,17 @@
 function knowledge_graph(product, path) {
+    //-------- styles --------//
+    var colors = {
+        "entity": ""
+    };
+
+
     var center_trans_duration_time = 1000;
-    var mouse_hold_time_befor_center_trans = 1000;
+    var mouse_hold_time_befor_center_trans = 2000;
     var node_zoom_duration_time = 500;
     var TimeOut;
     var index = 0;//记录结点编号
     var blink_time = 1000;
+    var default_children_num = 5;//展开结点时默认最大结点数
 
 
     //数据
@@ -22,7 +29,7 @@ function knowledge_graph(product, path) {
     var height = 600;
     var line_color = "#778899";
     var line_blink_color = "#00008B";
-    var marge = {top: 10, bottom: 10, left: 10, right: 10};
+    var marge = {top: 0, bottom: 0, left: 0, right: 0};
     var center = {x: (width - marge.left - marge.right) / 2, y: (height - marge.top - marge.bottom) / 2};
     var valid_size = Math.min(height - marge.top - marge.bottom, width - marge.left - marge.right);
     var zoom_factor = 1;
@@ -30,9 +37,14 @@ function knowledge_graph(product, path) {
     var min_zoom_factor = 0.01;
     var animation_start = [0, 0, valid_size / zoom_factor];
     var animation_end = [0, 0, valid_size / zoom_factor];
+
+    var nodeHeight = 20, childIndent = 20;
+    var collapse_duration = 250;
+
     var svg = d3.select("#svg_div").append("svg")
         .attr("width", width)
         .attr("height", height)
+        // .style("background","orange")
         .on("mousewheel DOMMouseScroll", svgZoom)
         // .attr("pointer-events","bounding-box")
         .on("mouseenter", LockBodyScroll)
@@ -40,6 +52,7 @@ function knowledge_graph(product, path) {
         .append("g")
         .attr("transform", "translate(" + center.x + "," + center.y + ")")
         .call(zoom_transition, animation_start, animation_end);
+    var ul = d3.select("#ul_div").append("ul").classed("treelist", "true").style("position", "relative");
     //创建一个hierarchy layout
     var hierarchyData = d3.hierarchy(root)
         .sum(function (d) {
@@ -55,6 +68,7 @@ function knowledge_graph(product, path) {
         });
     //初始化树状图，也就是传入数据,并得到绘制树基本数据
     var treeData = tree(hierarchyData);
+    hideChildren(treeData, default_children_num);
     setLayout();//自定义布局
     //创建一个贝塞尔生成曲线生成器
     var Bezier_curve_generator = d3.linkHorizontal()
@@ -74,16 +88,18 @@ function knowledge_graph(product, path) {
         .enter()
         .append("path")
         .attr("class", "link")
-        .attr("d", draw_path)
-        .attr("fill", "none")
-        .attr("stroke", line_color)
-        .attr("stroke-width", 1);
+        .attr("d", draw_path);
+    // .attr("fill", "none")
+    // .attr("stroke", line_color)
+    // .attr("stroke-width", 1);
     //得到节点
     var nodes = treeData.descendants();
     // node.x0,y0 记录原来的位置（for animation）
     nodes.forEach(function (d) {
         d.x0 = d.x;
         d.y0 = d.y;
+        // d.top0 = d.top;
+        // d.left0 = d.left;
     });
     //绘制节点和文字
     var gs = svg//.append("g")
@@ -120,8 +136,30 @@ function knowledge_graph(product, path) {
         .attr("dy", text_dy)
         .style("font-size", font_size);
 
+    var ul_nodes = ul.selectAll("li.node_list").data(nodes).enter().append("li").classed("node_list", true)
+    // .style("padding-top", padding_top)
+    // .style("padding-left", padding_left)
+        .style("top", padding_top)
+        .style("left", padding_left)
+        .style("opacity", 1)
+        .style("height", nodeHeight + "px")
+        .on("click", nodeClick)
+        .on("mouseenter", nodeMouseEnter)
+        .on("mouseleave", nodeMouseLeave);
+    // icon for the '>' at left
+    ul_nodes
+        .append("span")
+        .attr("class", caret_icon);
+    // icon for the figures at left
+    ul_nodes
+        .append("span").attr("class", figure_icon);
+    //texts in the ul
+    ul_nodes
+        .append("span").attr("class", "filename")
+        .html(function (d) {
+            return d.data.name;
+        });
 //----------ul 层次列表----------//
-
 
 
     function nodeClick(d) {
@@ -130,12 +168,20 @@ function knowledge_graph(product, path) {
             if (d.children) {
                 d._children = d.children;
                 d.children = null;
+                update(d);
+                animationToCenter(d.parent);
             }
             else {
                 d.children = d._children;
                 d._children = null;
+                update(d);
+                animationToCenter(d);
             }
-            update(d);
+        }
+        else if (d.data.type == "expand") {
+            expandHiddenChildren(d.parent, default_children_num);
+            update(d.parent);
+            animationToCenter(d.parent);
         }
         else if (d.data.type == "entity_synonym" || d.data.type == "attribute_synonym") {
             // 点击synonym结点不进行任何操作
@@ -154,6 +200,7 @@ function knowledge_graph(product, path) {
                     return d.value;
                 });
             treeData = tree(hierarchyData);
+            hideChildren(treeData);
             setLayout();
             var nodes = treeData.descendants();
             // node.x0,y0 记录原来的位置（for animation）
@@ -183,12 +230,15 @@ function knowledge_graph(product, path) {
                     // if(d.data.type!="group")
                     //     return 0;
                     return d.parent && d.parent.idNo == node.idNo;
-                }).call(NodeBlinking)
+                }).call(NodeBlinking);
             }
         }, mouse_hold_time_befor_center_trans);
         d3.selectAll("g.node").filter(function (d) {
             return d.idNo == node.idNo;
         }).call(NodeZoomIn, node_zoom_duration_time);
+        ul.selectAll("li.node_list").filter(function (d) {
+            return d.idNo == node.idNo;
+        }).classed("selected", true);
     }
 
     function nodeMouseLeave(node) {
@@ -196,18 +246,22 @@ function knowledge_graph(product, path) {
         d3.selectAll("g.node").filter(function (d) {
             return d.idNo == node.idNo;
         }).call(NodeZoomOut, node_zoom_duration_time);
+        ul.selectAll("li.node_list").filter(function (d) {
+            return d.idNo == node.idNo;
+        }).classed("selected", false);
     }
 
     function animationToCenter(node) {
         // animations to center at the node
         // animation_end[2] = valid_size / zoom_factor / (node.depth + 1);
+        zoom_factor = 1;
         var visualSize;
         if (node.data.type != "group" && node.data.type != "root")
             visualSize = node.space * 10;
         else {
             var extra_space = 0;
             for (i in node.children) {
-                if (node.children[i].data.type == "group" && node.children[i].space > extra_space)
+                if (/*node.children[i].data.type == "group" && */node.children[i].space > extra_space)
                     extra_space = node.children[i].space;
             }
             visualSize = node.space + extra_space;
@@ -237,7 +291,7 @@ function knowledge_graph(product, path) {
     function update(source) {
 
 //取得现有的节点数据,因为设置了Children属性，没有Children的节点将被删除
-
+        setLayout();
         var nodes = treeData.descendants().reverse();
         var links = treeData.links();
 
@@ -257,11 +311,14 @@ function knowledge_graph(product, path) {
             .attr("d", function (d) {
                 var o = {x: source.x, y: source.y}
                 return draw_path({source: o, target: o})
-            })
-            .attr("fill", "none")
-            .attr("stroke", line_color)
-            .attr("stroke-width", 1);
+            });
+        // .attr("fill", "none")
+        // .attr("stroke", line_color)
+        // .attr("stroke-width", 1);
 
+        link.transition()
+            .duration(center_trans_duration_time)
+            .attr("d", draw_path);
         linkEnter.transition()
             .duration(center_trans_duration_time)
             .attr("d", draw_path);
@@ -278,11 +335,21 @@ function knowledge_graph(product, path) {
 
 
 //为节点更新数据
-        var node = svg.selectAll("g.node")
+        var graph_nodes = svg.selectAll("g.node")
             .data(nodes, function (d) {
                 return d.idNo || (d.idNo = ++index);
             });
-        var nodeEnter = node
+        graph_nodes.selectAll("text")
+            .attr("transform", text_transform)
+            .text(function (d) {
+                return d.data.name;
+            })
+            .attr("dx", text_dx)
+            .attr("dy", text_dy)
+            .style("font-size", font_size);
+        graph_nodes.selectAll("circle")
+            .attr("r", radius);
+        var nodeEnter = graph_nodes
             .enter()
             .append("g")
             .attr("class", "node")
@@ -313,21 +380,85 @@ function knowledge_graph(product, path) {
             .attr("dy", text_dy)
             .style("font-size", font_size);
         //节点动画
-        var nodeUpdate = nodeEnter.transition()
+        var nodeUpdate = graph_nodes.transition()
+            .duration(center_trans_duration_time)
+            .attr("transform", node_transform);
+        nodeEnter.transition()
             .duration(center_trans_duration_time)
             .attr("transform", node_transform);
         //将无用的子节点删除
-        var nodeExit = node.exit()
+        var nodeExit = graph_nodes.exit()
             .transition()
             .duration(center_trans_duration_time)
             .attr("transform", function (d) {
                 return node_transform(source);
             })
             .remove();
+// 更新列表
+        function isChildOfSource(child) {
+            var c = child;
+            while (c.parent) {
+                if (c.parent.id == source.id)
+                    return true;
+                else
+                    c = c.parent;
+            }
+            return false;
+        }
+
+        var ul_nodes = ul.selectAll("li.node_list").data(nodes, function (d) {
+            return d.idNo || (d.idNo = ++index);
+        });
+        ul_nodes.selectAll("span.filename")
+            .html(function (d) {
+                return d.data.name;
+            });
+        var ul_enter = ul_nodes.enter().append("li").classed("node_list", true)
+            .style("top", function (d) {
+                if (isChildOfSource(d))
+                    return padding_top(source);
+                else
+                    return padding_top(d);
+            })
+            .style("left", padding_left)
+            .style("opacity", function (d) {
+                return opacity(d, source);
+            })
+            .style("height", nodeHeight + "px")
+            .on("click", nodeClick)
+            .on("mouseenter", nodeMouseEnter)
+            .on("mouseleave", nodeMouseLeave);
+        // icon for the '>' at left
+        ul_enter
+            .append("span")
+            .attr("class", caret_icon);
+        // icon for the figures at left
+        ul_enter
+            .append("span").attr("class", figure_icon);
+        //texts in the ul
+        ul_enter
+            .append("span").attr("class", "filename")
+            .html(function (d) {
+                return d.data.name;
+            });
+        //update position with transition
+        ul_nodes.transition().duration(collapse_duration)
+            .style("top", padding_top)
+            .style("left", padding_left)
+            .style("opacity", 1);
+        ul_enter
+            .transition().duration(collapse_duration)
+            .style("top", padding_top)
+            .style("left", padding_left)
+            .style("opacity", 1);
+        ul_nodes.exit().remove();
+
 //记录下当前位置,为下次动画记录初始值
         nodes.forEach(function (d) {
             d.x0 = d.x;
             d.y0 = d.y;
+            // d.top0 = d.top;
+            // d.left0 = d.left;
         });
 
     }
@@ -372,8 +503,12 @@ function knowledge_graph(product, path) {
     }
 
     function radius(d) {
-        if (d.data.type != "group" && d.data.type != "root")
-            return 6;
+        if (d.data.type != "group" && d.data.type != "root") {
+            var cousinNum = d.parent.children.length
+            if (cousinNum > default_children_num + 1)
+                return 50 * (default_children_num + 1) / cousinNum;
+            return 50;
+        }
         else
             return 120 - 5 * d.depth;
     }
@@ -407,52 +542,53 @@ function knowledge_graph(product, path) {
     }
 
     function text_x(d) {
-        if (d.data.type == "group" || d.data.type == "root")
-            return 0;
-        var related_angel = angel_ralated_to_parent(d);
-        if (Math.abs(related_angel) > Math.PI / 2)
-            return 2 * radius(d) * Math.sin(related_angel);
-        else
-            return (text_size(d) / 2 + 2 * radius(d)) * Math.sin(related_angel);
-        // if (d.x > Math.PI)
-        //     return d.children ? 8 : -10;
+        // if (d.data.type == "group" || d.data.type == "root")
+        return 0;
+        // var related_angel = angel_ralated_to_parent(d);
+        // if (Math.abs(related_angel) > Math.PI / 2)
+        //     return 2 * radius(d) * Math.sin(related_angel);
         // else
-        //     return d.children ? -10 : 8;
+        //     return (text_size(d) / 2 + 2 * radius(d)) * Math.sin(related_angel);
     }
 
     function text_y(d) {
-        if (d.data.type == "group" || d.data.type == "root")
-            return 0;
-        var related_angel = angel_ralated_to_parent(d);
-        if (Math.abs(related_angel) > Math.PI / 2)
-            return 2 * radius(d) * Math.cos(related_angel);
-        else
-            return (text_size(d) / 2 + 2 * radius(d)) * Math.cos(related_angel);
-        // if (d.x > Math.PI / 2 && d.x < Math.PI * 3 / 2)
-        //     return d.children ? 20 : -10;
+        // if (d.data.type == "group" || d.data.type == "root")
+        return 0;
+        // var related_angel = angel_ralated_to_parent(d);
+        // if (Math.abs(related_angel) > Math.PI / 2)
+        //     return 2 * radius(d) * Math.cos(related_angel);
         // else
-        //     return d.children ? -10 : 20;
+        //     return (text_size(d) / 2 + 2 * radius(d)) * Math.cos(related_angel);
     }
 
     function text_dy(d) {
-        if (d.data.type == "group" || d.data.type == "root")
-            return text_size(d) / 2;
-        else {
-            return 0;
-            var related_angel = angel_ralated_to_parent(d);
-            return text_size(d) / 2 * Math.sin(related_angel);
-        }
+        // if (d.data.type == "group" || d.data.type == "root")
+        return text_size(d) / 2;
+        // else {
+        //     return 0;
+        //     var related_angel = angel_ralated_to_parent(d);
+        //     return text_size(d) / 2 * Math.sin(related_angel);
+        // }
     }
 
     function text_dx(d) {
-        if (d.data.type == "group" || d.data.type == "root")
-            return 0;
-        else {
-            return 0;
-            var related_angel = angel_ralated_to_parent(d);
-            return text_size(d) / 2 * Math.cos(related_angel);
-        }
+        // if (d.data.type == "group" || d.data.type == "root")
+        return 0;
+        // else {
+        //     return 0;
+        //     var related_angel = angel_ralated_to_parent(d);
+        //     return text_size(d) / 2 * Math.cos(related_angel);
+        // }
 
+    }
+
+    function padding_top(d) {
+        // return "20px";
+        return d.top + "px";
+    }
+
+    function padding_left(d) {
+        return d.left + "px";
     }
 
     function zoom_transition(svg, start, end, time_delay=0, time_duration=null) {
@@ -497,22 +633,20 @@ function knowledge_graph(product, path) {
     }
 
     function LinkBlinking(d) {
-        d.transition()
-            .duration(blink_time / 2)
-            .attr("stroke", line_blink_color)
-            .attr("stroke-width", 2)
+        d
             .transition()
             .duration(blink_time / 2)
-            .attr("stroke", line_color)
-            .attr("stroke-width", 1)
+            .attr("class", "link_blink")
             .transition()
             .duration(blink_time / 2)
-            .attr("stroke", line_blink_color)
-            .attr("stroke-width", 2)
+            .attr("class", "link")
             .transition()
             .duration(blink_time / 2)
-            .attr("stroke", line_color)
-            .attr("stroke-width", 1);
+            .attr("class", "link_blink")
+            .transition()
+            .duration(blink_time / 2)
+            .attr("class", "link");
+        //d.classed("link",function(){this.classList.add("blink");return true;})
     }
 
     function NodeZoomIn(d, durationTime) {
@@ -590,12 +724,56 @@ function knowledge_graph(product, path) {
             .style("font-style", "normal");
     }
 
+
     function setLayout() {
         // 更改布局结构
         spaceOfNode(treeData);
         setChildrenAxis(treeData);
+        setListAxis(treeData);
     }
 
+    function hideChildren(root, maxChildNum) {
+        if (!maxChildNum)
+            maxChildNum = default_children_num
+        var children = root.children;
+        if (!children)
+            children = root._children;
+        if (!children)
+            return;
+        for (i in children)
+            hideChildren(children[i], maxChildNum)
+        var hiddenChildNum = children.length - maxChildNum;
+        if (hiddenChildNum <= 1)
+            return;
+        var expandNode = {
+            data: {name: "show " + hiddenChildNum + " more", type: "expand"},
+            height: 0,
+            depth: root.depth + 1,
+            value: 0,
+            parent: root
+        };
+        root.hiddenChildren = children.splice(maxChildNum, hiddenChildNum);
+        children.splice(0, 0, expandNode);
+        return;
+    }
+
+    function expandHiddenChildren(root, maxChildNum) {
+        if (!root.children || !root.children[0].data.type == "expand")
+            return;
+        if (!maxChildNum)
+            maxChildNum = default_children_num;
+        var children = root.children;
+        if (root.hiddenChildren) {
+            children[0].data.name = "remain only " + maxChildNum;
+            root.children = children.concat(root.hiddenChildren);
+            root.hiddenChildren = null;
+        }
+        else {
+            var hiddenChildNum = children.length - maxChildNum - 1;
+            root.children[0].data.name = "show" + hiddenChildNum + "more";
+            root.hiddenChildren = children.splice(maxChildNum + 1, hiddenChildNum)
+        }
+    }
 
     /*  紧凑型布局使用这两个函数 */
     function spaceOfNode(d) {
@@ -605,9 +783,15 @@ function knowledge_graph(product, path) {
         else {
             var i;
             space = 0;
-            for (i in d.children)
+            var extra_space = 0;
+            for (i in d.children) {
                 space = space + spaceOfNode(d.children[i]);
-            space = space / Math.PI;
+                // if (d.children[i].data.type == "group")
+                //     space = space + 8 *
+                if (d.children[i].space > extra_space)
+                    extra_space = d.children[i].space;
+            }
+            space = space / Math.PI + extra_space;
             var space_min = 10 * radius(d);
             if (space < space_min)
                 space = space_min;
@@ -630,12 +814,10 @@ function knowledge_graph(product, path) {
         for (i in d.children) {
 
             angel = angel + d.children[i].space / total_children_space * Math.PI;
-            var extra_space = 0;
-            if (d.children[i].data.type == "group")
-                extra_space = 2 * radius(d);
+
             var related_axis = {
-                x: (extra_space + d.space / 2) * Math.cos(angel),
-                y: (extra_space + d.space / 2) * Math.sin(angel)
+                x: d.space / 2 * Math.cos(angel),
+                y: d.space / 2 * Math.sin(angel)
             };
             var absolute_axis = {x: related_origin.x + related_axis.x, y: related_origin.y + related_axis.y};
             var r = Math.sqrt(absolute_axis.x * absolute_axis.x + absolute_axis.y * absolute_axis.y);
@@ -692,6 +874,42 @@ function knowledge_graph(product, path) {
     //         setChildrenAxis(d.children[i]);
     //     }
     // }
+
+    function setListAxis(d, top=0) {
+        // 设置用于tree list的top、left属性
+        top = top + nodeHeight;
+        d.top = top;
+        d.left = d.parent ? d.parent.left + childIndent : 0;
+        for (i in d.children) {
+            top = setListAxis(d.children[i], top)
+        }
+        return top;
+    }
+
+    function caret_icon(d) {
+        var icon = d.children ? " glyphicon-chevron-down"
+            : d._children ? "glyphicon-chevron-right" : "";
+        return "caret glyphicon " + icon;
+    }
+
+    function figure_icon(d) {
+        var icon = d.data.children || d.data._children ? "glyphicon-folder-close"
+            : "glyphicon-file";
+        return "glyphicon " + icon;
+    }
+
+    function opacity(d, source) {
+        if (!source || !d.parent)
+            return 1;
+        var p = d.parent;
+        while (p) {
+            if (p.idNo == source.idNo)
+                return 0;
+            else
+                p = p.parent;
+        }
+        return 1;
+    }
 
     function loadJS(url) {
         var xmlHttp = null;

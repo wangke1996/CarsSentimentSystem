@@ -22,21 +22,36 @@
     <link rel="stylesheet" href="static/WebTemplate/css/ie/v8.css"/><![endif]-->
     <link href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css" rel="stylesheet">
     <style>
+        svg{
+            background: black;
+        }
+        .node text{
+            fill:white;
+        }
+        .link{
+            fill:none;
+            stroke:white;
+            stroke-width: 3;
+        }
+        .link_blink{
+            fill:none;
+            stroke:orange;
+            stroke-width: 10;
+        }
         .selected {
-            color: orange;
+            color: blue;
         }
 
-        .node {
+        .node_list {
             position: absolute;
             list-style: none;
             cursor: default;
         }
-
-        .node span {
+        .node_list span {
             margin-right: 3px;
         }
 
-        .node .caret {
+        .node_list .caret {
             font-size: 10px;
         }
     </style>
@@ -77,20 +92,12 @@
     <header>
         <h2>{{product}}领域知识图谱</h2>
         <p>实体-属性-描述-情感知识图谱呈现</p>
-        <style>
-            <!--
-            #svg_div {
-                overflow: hidden;
 
-            }
-
-            -->
-        </style>
     </header>
     <div class="row">
-        <div id="svg_div" class="12u">
+        <div id="svg_div" class="8u">
         </div>
-        <div id="ul_div" class="12u">
+        <div id="ul_div" class="4u" position="relative">
         </div>
     </div>
 
