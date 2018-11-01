@@ -11,6 +11,7 @@ function knowledge_graph(product, path) {
     var TimeOut;
     var index = 0;//记录结点编号
     var blink_time = 1000;
+    var blink_count = 2;
     var default_children_num = 5;//展开结点时默认最大结点数
 
 
@@ -87,7 +88,8 @@ function knowledge_graph(product, path) {
         })
         .enter()
         .append("path")
-        .attr("class", "link")
+        // .attr("class", "link")
+        .classed("link", linkCssClass)
         .attr("d", draw_path);
     // .attr("fill", "none")
     // .attr("stroke", line_color)
@@ -159,6 +161,7 @@ function knowledge_graph(product, path) {
         .html(function (d) {
             return d.data.name;
         });
+
 //----------ul 层次列表----------//
 
 
@@ -307,7 +310,8 @@ function knowledge_graph(product, path) {
 //更新链接
         linkEnter = link.enter()
             .append("path")
-            .attr("class", "link")
+            // .attr("class", "link")
+            .classed("link", linkCssClass)
             .attr("d", function (d) {
                 var o = {x: source.x, y: source.y}
                 return draw_path({source: o, target: o})
@@ -394,6 +398,7 @@ function knowledge_graph(product, path) {
                 return node_transform(source);
             })
             .remove();
+
 // 更新列表
         function isChildOfSource(child) {
             var c = child;
@@ -496,8 +501,12 @@ function knowledge_graph(product, path) {
     }
 
     function text_size(d) {
-        if (d.data.type == "group" || d.data.type == "root")
-            return radius(d) / 2;
+        // if (d.data.type == "group" || d.data.type == "root")
+        //     return radius(d) / 2;
+        // else
+        var text_len = d.data.name.length;
+        if (text_len > 3)
+            return radius(d);
         else
             return radius(d) * 2;
     }
@@ -633,20 +642,20 @@ function knowledge_graph(product, path) {
     }
 
     function LinkBlinking(d) {
-        d
-            .transition()
-            .duration(blink_time / 2)
-            .attr("class", "link_blink")
-            .transition()
-            .duration(blink_time / 2)
-            .attr("class", "link")
-            .transition()
-            .duration(blink_time / 2)
-            .attr("class", "link_blink")
-            .transition()
-            .duration(blink_time / 2)
-            .attr("class", "link");
-        //d.classed("link",function(){this.classList.add("blink");return true;})
+        d.classed("link", function () {
+            this.classList.toggle("blink");
+            return true;
+        });
+        var blinkInterval;
+        blinkInterval = setInterval(function () {
+            d.classed("link", function () {
+                this.classList.toggle("blink");
+                return true;
+            });
+        }, blink_time / 2);
+        var blinkTimeOut = setTimeout(function () {
+            clearInterval(blinkInterval)
+        }, (blink_count - 0.5) * blink_time + 50);
     }
 
     function NodeZoomIn(d, durationTime) {
@@ -884,6 +893,18 @@ function knowledge_graph(product, path) {
             top = setListAxis(d.children[i], top)
         }
         return top;
+    }
+
+    function linkCssClass(link) {
+        if (link.target.data.type == "group")
+            this.classList.add("trivial");
+        else if (link.target.data.type == "entity")
+            this.classList.add("entity");
+        else if (link.target.data.type == "attribute")
+            this.classList.add("attribute");
+        else
+            this.classList.add("description");
+        return true;
     }
 
     function caret_icon(d) {
