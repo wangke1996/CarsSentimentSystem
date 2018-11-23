@@ -1,21 +1,16 @@
 function knowledge_graph(product, path) {
-    //-------- styles --------//
-    var colors = {
-        "entity": ""
-    };
-
-
     var center_trans_duration_time = 1000;
     var mouse_hold_time_befor_center_trans = 2000;
     var node_zoom_duration_time = 500;
     var TimeOut;
     var index = 0;//记录结点编号
-    var blink_time = 1000;
-    var blink_count = 2;
+    var blink_time = 1000;//应等于css中Link类动画时间的两倍
+    var blink_count = 2;//闪烁次数
     var default_children_num = 5;//展开结点时默认最大结点数
 
 
     //数据
+
     loadJS(path + "/" + product + ".js");
     var children_nodes = JSON.parse(unescapeHTML(partial_graph));
     var root = {
@@ -42,10 +37,12 @@ function knowledge_graph(product, path) {
     var nodeHeight = 20, childIndent = 20;
     var collapse_duration = 250;
 
+    d3.selectAll(".svg_graph").data([]).exit().remove();
+    d3.selectAll(".treelist").data([]).exit().remove();
     var svg = d3.select("#svg_div").append("svg")
         .attr("width", width)
         .attr("height", height)
-        // .style("background","orange")
+        .attr("class","svg_graph")
         .on("mousewheel DOMMouseScroll", svgZoom)
         // .attr("pointer-events","bounding-box")
         .on("mouseenter", LockBodyScroll)
@@ -120,11 +117,18 @@ function knowledge_graph(product, path) {
         .on("mouseenter", nodeMouseEnter)
         .on("mouseleave", nodeMouseLeave);
     //绘制节点
-    gs.append("circle")
-        .attr("r", radius)
-        .attr("fill", "none")
-        .attr("stroke", "blue")
-        .attr("stroke-width", 1);
+    // gs.append("circle")
+    //     .attr("r", radius)
+    //     .attr("fill", "none")
+    //     .attr("stroke", "blue")
+    //     .attr("stroke-width", 1);
+    gs.append("path")
+        .attr("d", d3.symbol().size(nodeShapeSize).type(nodeShape))
+        .classed("shape", shapeCssClass);
+    // .style("fill", "steelblue")
+    // .style("stroke", "white")
+    // .style("stroke-width", "1.5px")
+
     //文字
     gs.append("text")
         .attr("text-anchor", "middle")
@@ -351,8 +355,11 @@ function knowledge_graph(product, path) {
             .attr("dx", text_dx)
             .attr("dy", text_dy)
             .style("font-size", font_size);
-        graph_nodes.selectAll("circle")
-            .attr("r", radius);
+        // graph_nodes.selectAll("circle")
+        //     .attr("r", radius);
+        graph_nodes.selectAll("path")
+            .attr("d", d3.symbol().size(nodeShapeSize).type(nodeShape));
+
         var nodeEnter = graph_nodes
             .enter()
             .append("g")
@@ -366,11 +373,14 @@ function knowledge_graph(product, path) {
             .on("mouseleave", nodeMouseLeave);
 
         //绘制节点
-        nodeEnter.append("circle")
-            .attr("r", radius)
-            .attr("fill", "none")
-            .attr("stroke", "blue")
-            .attr("stroke-width", 1);
+        // nodeEnter.append("circle")
+        //     .attr("r", radius)
+        //     .attr("fill", "none")
+        //     .attr("stroke", "blue")
+        //     .attr("stroke-width", 1);
+        nodeEnter.append("path")
+            .attr("d", d3.symbol().size(nodeShapeSize).type(nodeShape))
+            .classed("shape", shapeCssClass);
         //文字
         nodeEnter.append("text")
             .attr("text-anchor", "middle")
@@ -658,15 +668,26 @@ function knowledge_graph(product, path) {
         }, (blink_count - 0.5) * blink_time + 50);
     }
 
+
     function NodeZoomIn(d, durationTime) {
-        var circle = d.select("circle");
-        circle
-            .transition()
-            .duration(durationTime)
-            .attr("r", function (d) {
-                return 2 * radius(d);
+        // var circle = d.select("circle");
+        // circle
+        //     .transition()
+        //     .duration(durationTime)
+        //     .attr("r", function (d) {
+        //         return 2 * radius(d);
+        //     })
+        //     .attr("fill", circle.attr("stroke"));
+        d.select("path")
+            .classed("shape", function () {
+                this.classList.toggle("selectedNode");
+                return true;
             })
-            .attr("fill", circle.attr("stroke"));
+            .transition(durationTime)
+            .attr("d", d3.symbol().size(function (d) {
+                return 4 * nodeShapeSize(d);
+            }).type(nodeShape));
+
         d.select("text")
             .transition()
             .duration(durationTime)
@@ -681,13 +702,21 @@ function knowledge_graph(product, path) {
     }
 
     function NodeZoomOut(d, durationTime) {
-        var circle = d.select("circle")
-            .transition()
-            .duration(durationTime)
-            .attr("r", radius)
-            .transition()
-            // .duration(0)
-            .attr("fill", "none");
+        // var circle = d.select("circle")
+        //     .transition()
+        //     .duration(durationTime)
+        //     .attr("r", radius)
+        //     .transition()
+        //     // .duration(0)
+        //     .attr("fill", "none");
+        d.select("path")
+            .classed("shape", function () {
+                this.classList.toggle("selectedNode");
+                return true;
+            })
+            .transition(durationTime)
+            .attr("d", d3.symbol().size(nodeShapeSize).type(nodeShape));
+
         d.select("text")
             .transition()
             .duration(durationTime)
@@ -698,39 +727,51 @@ function knowledge_graph(product, path) {
     }
 
     function NodeBlinking(d) {
-        var circle = d.select("circle");
-        circle
-            .transition()
-            .duration(blink_time)
-            .attr("r", function (d) {
-                return 2 * radius(d);
-            })
-            .attr("fill", circle.attr("stroke"))
-            .transition()
-            .duration(blink_time)
-            .attr("r", function (d) {
-                return radius(d);
-            })
-            .transition()
-            .duration(0)
-            .attr("fill", "none");
-        d.select("text")
-            .transition()
-            .duration(blink_time)
-            .attr("dx", function (d) {
-                return 2 * text_dx(d);
-            })
-            .attr("dy", function (d) {
-                return 2 * text_dy(d);
-            })
-            .style("font-size", font_size_focus)
-            .style("font-style", "bold")
-            .transition()
-            .duration(blink_time)
-            .attr("dx", text_dx)
-            .attr("dy", text_dy)
-            .style("font-size", font_size)
-            .style("font-style", "normal");
+        NodeZoomIn(d, blink_time / 2);
+        var i = 0;
+        var interval = setInterval(function () {
+            if (i % 2 == 1)
+                NodeZoomIn(d, blink_time / 2);
+            else
+                NodeZoomOut(d, blink_time / 2);
+            i++;
+        }, blink_time / 2);
+        setTimeout(function () {
+            clearInterval(interval);
+        }, (blink_count - 0.5) * blink_time + 50);
+        // var circle = d.select("circle");
+        // circle
+        //     .transition()
+        //     .duration(blink_time)
+        //     .attr("r", function (d) {
+        //         return 2 * radius(d);
+        //     })
+        //     .attr("fill", circle.attr("stroke"))
+        //     .transition()
+        //     .duration(blink_time)
+        //     .attr("r", function (d) {
+        //         return radius(d);
+        //     })
+        //     .transition()
+        //     .duration(0)
+        //     .attr("fill", "none");
+        // d.select("text")
+        //     .transition()
+        //     .duration(blink_time)
+        //     .attr("dx", function (d) {
+        //         return 2 * text_dx(d);
+        //     })
+        //     .attr("dy", function (d) {
+        //         return 2 * text_dy(d);
+        //     })
+        //     .style("font-size", font_size_focus)
+        //     .style("font-style", "bold")
+        //     .transition()
+        //     .duration(blink_time)
+        //     .attr("dx", text_dx)
+        //     .attr("dy", text_dy)
+        //     .style("font-size", font_size)
+        //     .style("font-style", "normal");
     }
 
 
@@ -895,15 +936,88 @@ function knowledge_graph(product, path) {
         return top;
     }
 
+    function nodeShape(node) {
+        switch (node.data.type) {
+            case "entity":
+                ;
+            case "entity_synonym":
+                return d3.symbols[3];//square
+            case "attribute":
+                ;
+            case "attribute_synonym":
+                return d3.symbols[0];//circle
+            case "expand":
+                return d3.symbols[1];//cross
+            case "group":
+                return d3.symbols[6];// Y shape
+            case "root":
+                return d3.symbols[4];//star
+            default:
+                // descriptions
+                return d3.symbols[2];//diamond
+        }
+    }
+
+    function nodeShapeSize(node) {
+        return 10 * Math.pow(radius(node), 2);
+    }
+
+    function shapeCssClass(node) {
+        var nodeType = node.data.type;
+        if (nodeType == "root" || nodeType == "group") {
+            this.classList.add(nodeType + "Node")
+            return true;
+        }
+        var parentName = node.parent.data.name;
+        if (parentName.indexOf("positive") != -1 || parentName.indexOf("neutral") != -1 || parentName.indexOf("negative") != -1) {
+            //sentiment nodes
+            this.classList.add(parentName + "Node");
+            return true;
+        }
+        if (parentName.indexOf("synonym") != -1) {
+            // synonym nodes
+            this.classList.add("synonymNode");
+            return true;
+        }
+        if (parentName.indexOf("father") != -1 || parentName.indexOf("child") != -1) {
+            // whole-part relationship node
+            this.classList.add("wholePartNode");
+            return true;
+        }
+        if (parentName.indexOf("entit") != -1 || parentName.indexOf("attribute") != -1) {
+            // entity-attribute relationship node
+            this.classList.add("entityAttributeNode");
+            return true;
+        }
+    }
+
     function linkCssClass(link) {
-        if (link.target.data.type == "group")
-            this.classList.add("trivial");
-        else if (link.target.data.type == "entity")
-            this.classList.add("entity");
-        else if (link.target.data.type == "attribute")
-            this.classList.add("attribute");
-        else
-            this.classList.add("description");
+        if (link.target.data.type == "group") {
+            //normal links
+            this.classList.add("trivialLink");
+            return true;
+        }
+        var sourceName = link.source.data.name;
+        if (sourceName.indexOf("positive") != -1 || sourceName.indexOf("neutral") != -1 || sourceName.indexOf("negative") != -1) {
+            //sentiment links
+            this.classList.add(sourceName + "Link");
+            return true;
+        }
+        if (sourceName.indexOf("synonym") != -1) {
+            // synonym links
+            this.classList.add("synonymLink");
+            return true;
+        }
+        if (sourceName.indexOf("father") != -1 || sourceName.indexOf("child") != -1) {
+            // whole-part links
+            this.classList.add("wholePartLink");
+            return true;
+        }
+        if (sourceName.indexOf("entit") != -1 || sourceName.indexOf("attribute") != -1) {
+            // entity-attribute links
+            this.classList.add("entityAttributeLink");
+            return true;
+        }
         return true;
     }
 
@@ -930,58 +1044,5 @@ function knowledge_graph(product, path) {
                 p = p.parent;
         }
         return 1;
-    }
-
-    function loadJS(url) {
-        var xmlHttp = null;
-        if (window.ActiveXObject)//IE
-        {
-            try {
-                //IE6以及以后版本中可以使用
-                xmlHttp = new ActiveXObject("Msxml2.XMLHTTP");
-            }
-            catch (e) {
-                //IE5.5以及以后版本可以使用
-                xmlHttp = new ActiveXObject("Microsoft.XMLHTTP");
-            }
-        }
-        else if (window.XMLHttpRequest)//Firefox，Opera 8.0+，Safari，Chrome
-        {
-            xmlHttp = new XMLHttpRequest();
-        }
-        //采用同步加载
-        xmlHttp.open("GET", url, false);
-        //发送同步请求，如果浏览器为Chrome或Opera，必须发布后才能运行，不然会报错
-        xmlHttp.send(null);
-        //4代表数据发送完毕
-        if (xmlHttp.readyState == 4) {
-            //0为访问的本地，200到300代表访问服务器成功，304代表没做修改访问的是缓存
-            if ((xmlHttp.status >= 200 && xmlHttp.status < 300) || xmlHttp.status == 0 || xmlHttp.status == 304) {
-                var myHead = document.getElementsByTagName("HEAD").item(0);
-                var myScript = document.createElement("script");
-                myScript.language = "javascript";
-                myScript.type = "text/javascript";
-                myScript.charset = "utf-8";
-                try {
-                    //IE8以及以下不支持这种方式，需要通过text属性来设置
-                    myScript.appendChild(document.createTextNode(xmlHttp.responseText));
-                }
-                catch (ex) {
-                    myScript.text = xmlHttp.responseText;
-                }
-                myHead.appendChild(myScript);
-                return true;
-            }
-            else {
-                return false;
-            }
-        }
-        else {
-            return false;
-        }
-    }
-
-    function unescapeHTML(a) {
-        return a.replace(/&lt;|&#60;/g, "<").replace(/&gt;|&#62;/g, ">").replace(/&amp;|&#38;/g, "&").replace(/*/&quot;|*//&#34;/g, '"').replace(/&apos;|&#39;/g, "'");
     }
 }

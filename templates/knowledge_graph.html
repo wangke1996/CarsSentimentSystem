@@ -12,7 +12,9 @@
     <script src="static/WebTemplate/js/skel-layers.min.js"></script>
     <script src="static/WebTemplate/js/init.js"></script>
     <script type="text/javascript" src="http://d3js.org/d3.v5.min.js"></script>
+    <script type="text/javascript" src="static/js/myjs/myFunctionLibs.js"></script>
     <script type="text/javascript" src="static/js/myjs/knowledge_graph.js"></script>
+    <script type="text/javascript" src="static/js/myjs/knowledgeQuery.js"></script>
     <noscript>
         <link rel="stylesheet" href="static/WebTemplate/css/skel.css"/>
         <link rel="stylesheet" href="static/WebTemplate/css/style.css"/>
@@ -22,43 +24,193 @@
     <link rel="stylesheet" href="static/WebTemplate/css/ie/v8.css"/><![endif]-->
     <link href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css" rel="stylesheet">
     <style>
-        svg{
+        svg {
             background: black;
         }
-        .node text{
-            fill:white;
+
+        .node text {
+            fill: white;
         }
-        .trivial{
-            fill:none;
-            stroke:white;
+
+        /* link styles */
+        .trivialLink {
+            fill: none;
+            stroke: white;
             stroke-width: 5;
-            /*transition: all 500ms;*/
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+
         }
-        .entity {
+
+        .synonymLink {
+            fill: none;
+            stroke: Cyan;
+            stroke-width: 5;
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .entityAttributeLink {
             fill: none;
             stroke: yellow;
             stroke-width: 5;
-            /*transition: all 500ms;*/
-        }
-        .attribute{
-            fill:none;
-            stroke:red;
-            stroke-width: 5;
-            /*transition: all 500ms;*/
-        }
-        .description{
-            fill:none;
-            stroke:blue;
-            stroke-width: 5;
-            /*transition: all 500ms;*/
-        }
-
-        .blink{
-            fill:none;
-            stroke:orange;
-            stroke-width: 10;
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
             transition: all 500ms;
         }
+
+        .wholePartLink {
+            fill: none;
+            stroke: Lavender;
+            stroke-width: 5;
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .positiveLink {
+            fill: none;
+            stroke: lime;
+            stroke-width: 5;
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .neutralLink {
+            fill: none;
+            stroke: orange;
+            stroke-width: 5;
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .negativeLink {
+            fill: none;
+            stroke: red;
+            stroke-width: 5;
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .blink {
+            /*fill: none;*/
+            /*stroke:orange;*/
+            stroke-width: 50;
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        /* Node styles */
+        .rootNode {
+            fill: RoyalBlue;
+            /*stroke: white;*/
+            /*stroke-width: 5;*/
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+
+        }
+
+        .groupNode {
+            fill: MediumPurple;
+            /*stroke: white;*/
+            /*stroke-width: 5;*/
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+
+        }
+
+        .synonymNode {
+            fill: RoyalBlue;
+            /*stroke: white;*/
+            /*stroke-width: 5;*/
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .entityAttributeNode {
+            fill: MediumVioletRed;
+            /*stroke: white;*/
+            /*stroke-width: 5;*/
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .wholePartNode {
+            fill: DarkSlateGray;
+            /*stroke: white;*/
+            /*stroke-width: 5;*/
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .positiveNode {
+            fill: SeaGreen;
+            /*stroke: white;*/
+            /*stroke-width: 5;*/
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .neutralNode {
+            fill: Sienna;
+            /*stroke: white;*/
+            /*stroke-width: 5;*/
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .negativeNode {
+            fill: crimson;
+            /*stroke: white;*/
+            /*stroke-width: 5;*/
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .selectedNode {
+            /*fill: orange;*/
+            /*stroke:orange;*/
+            /*stroke-width: 10;*/
+            -webkit-transition: all 500ms;
+            -moz-transition: all 500ms;
+            -o-transition: all 500ms;
+            transition: all 500ms;
+        }
+
+        .node circle {
+            r: 100;
+        }
+
         .selected {
             color: blue;
         }
@@ -68,12 +220,55 @@
             list-style: none;
             cursor: default;
         }
+
         .node_list span {
             margin-right: 3px;
         }
 
         .node_list .caret {
             font-size: 10px;
+        }
+
+        .autocomplete {
+            /*the container must be positioned relative:*/
+            position: relative;
+            display: inline-block;
+        }
+
+        .autocomplete-items {
+            /*position: absolute;*/
+            border: 1px solid #d4d4d4;
+            border-bottom: none;
+            border-top: none;
+            z-index: 99;
+            /*position the autocomplete items to be the same width as the container:*/
+            top: 100%;
+            left: 0;
+            right: 0;
+        }
+
+        .autocomplete-items div {
+            padding: 10px;
+            cursor: pointer;
+            background-color: #fff;
+            border-bottom: 1px solid #d4d4d4;
+        }
+
+        .autocomplete-items div span {
+            float: right;
+            color: #e89980;
+        }
+
+        .autocomplete-items div:hover {
+            /*when hovering an item:*/
+            background-color: #e9e9e9;
+        }
+
+        .autocomplete-active {
+            /*when navigating through the items using the arrow keys:*/
+            background-color: #d4d4d4 !important;
+            /*background-color: DodgerBlue !important;*/
+            /*color: #ffffff;*/
         }
     </style>
 </head>
@@ -115,6 +310,17 @@
         <p>实体-属性-描述-情感知识图谱呈现</p>
 
     </header>
+    <!--<form action="javascript: submitQuery('static/kb_json/{{product}}')" method="post" autocomplete="off">-->
+        <div class="row uniform half collapse-at-2">
+            <div class="9u">
+                <input name="query" id="query" type="text" placeholder="查询实体、属性、描述词" value="汽车" class="f">
+            </div>
+            <div class="3u">
+                <input class="fit" type="submit" value="查看详情" onclick="submitQuery('static/kb_json/{{product}}')">
+            </div>
+        </div>
+    <!--</form>-->
+    <br>
     <div class="row">
         <div id="svg_div" class="8u">
         </div>
@@ -123,7 +329,8 @@
     </div>
 
 </section>
-<script type="text/javascript">knowledge_graph("{{product}}", "static/kb_json/{{product}}")</script>
+<!--<script type="text/javascript">knowledge_graph("{{product}}", "static/kb_json/{{product}}")</script>-->
+<script type="text/javascript">knowledgeQuery("static/kb_json/{{product}}")</script>
 <!-- Footer -->
 <footer id="footer">
     <ul class="icons">

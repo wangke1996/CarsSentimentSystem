@@ -2,7 +2,8 @@
 from flask import Flask, request, render_template, make_response
 
 from global_var import gl
-from knowledge_base import knowledge_base_init
+from knowledge_base import knowledge_base_init, knowledge_data_base_init
+import pyorient
 
 app = Flask(__name__)
 
@@ -42,7 +43,61 @@ def kb_graph():
     return resp
 
 
+def orient_test():
+    import random, time
+    kb = knowledge_base_init()
+    db = knowledge_data_base_init(db_type='remote')
+    word_list = list(kb.entitySet) + list(kb.attributeSet) + list(kb.descriptionSet) + [x.name for x in db.client.query(
+        "select name from EntitySyn", -1)] + [x.name for x in db.client.query("select name from AttriSyn", -1)]
+    test_case = 100
+    random_word = random.sample(word_list * (1 + int(test_case / len(word_list))), test_case)
+    start_time = time.time()
+    hit_count = 0
+    for word in random_word:
+        flag = 0
+        flag = flag + (1 if kb.have_entity(word, True) else 0)
+        flag = flag + (1 if kb.have_attribute(word, True) else 0)
+        flag = flag + (1 if kb.have_description(word) else 0)
+        flag = flag + (1 if kb.have_target(word, True) else 0)
+        if flag == 0:
+            print('kb error for word: %s' % word)
+        hit_count = hit_count + flag
+    end_time = time.time()
+    print('kb test %d node query, hit %d, time use: %f' % (4 * test_case, hit_count, end_time - start_time))
+
+    start_time = time.time()
+    hit_count = 0
+    for word in random_word:
+        flag = 0
+        flag = flag + (1 if db.have_entity(word, True) else 0)
+        flag = flag + (1 if db.have_attribute(word, True) else 0)
+        flag = flag + (1 if db.have_description(word) else 0)
+        flag = flag + (1 if db.have_target(word, True) else 0)
+        if flag == 0:
+            print('kb error for word: %s' % word)
+        hit_count = hit_count + flag
+    end_time = time.time()
+    print('db remote test %d node query, hit %d, time use: %f' % (4 * test_case, hit_count, end_time - start_time))
+
+    db.client.db_close()
+    db = knowledge_data_base_init(db_type='local')
+
+    start_time = time.time()
+    hit_count = 0
+    for word in random_word:
+        flag = 0
+        flag = flag + (1 if db.have_entity(word, True) else 0)
+        flag = flag + (1 if db.have_attribute(word, True) else 0)
+        flag = flag + (1 if db.have_description(word) else 0)
+        flag = flag + (1 if db.have_target(word, True) else 0)
+        if flag == 0:
+            print('kb error for word: %s' % word)
+        hit_count = hit_count + flag
+    end_time = time.time()
+    print('db local test %d node query, hit %d, time use: %f' % (4 * test_case, hit_count, end_time - start_time))
+
 if __name__ == '__main__':
     print('Server is running')
     gloabal_var_init()
+    # orient_test()
     app.run(host='0.0.0.0', debug=False, port=5001, threaded=True)  # debug=True
