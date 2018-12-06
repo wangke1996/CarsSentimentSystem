@@ -2,7 +2,7 @@
 import os
 import json
 import pickle
-import pyorient
+#import pyorient
 import itertools
 
 
@@ -21,6 +21,8 @@ class KnowledgeBaseConfig:
 
         self.CACHE_PATH = os.path.join(self.LIB_PATH, 'KnowledgeBaseCache.pkl')
         self.LOAD_FROM_CACHE = False  # load knowledge base from cached pikle file
+        
+        self.PROB_DA_PATH = os.path.join(self.LIB_PATH, 'ProbDA.txt')
 
 
 class KnowledgeBase:
@@ -39,6 +41,7 @@ class KnowledgeBase:
         self.pairPW = dict()  # Part-Whole entity pair, Key: Entity, Value: Set of Father-Entities for this Entity
         self.pairTD = dict()  # Target-Description pair, Key: Target(Entity or Attribute), Value: Set of Descriptions for this target
         self.pairDT = dict()  # Description-Target pair, Key: Description, Value: Set of Target for this Description
+        self.probDA = dict()  # Description&Attribute to probability Key: [Description, Attribute] Value: Probability
         self.pairSentiment = dict()  # Target,Description-Sentiment pair, Key: (Target,Description), Value: Sentiment (POS/NEU/NEG)
         self.js_cache_path = ""
 
@@ -54,7 +57,7 @@ class KnowledgeBase:
 
     def load_knowledge_base(self, entity_word_dir, attribute_word_dir, description_word_dir, whole_part_dir,
                             entity_attribute_dir, target_description_sentiment_dir, entity_synonym_dir,
-                            attribute_synonym_dir, js_cache_path, product_name="汽车"):
+                            attribute_synonym_dir, js_cache_path, prob_da_dir, product_name="汽车"):
         """
         load Knowledge Base from files
         :param entity_word_dir: 
@@ -273,7 +276,21 @@ class KnowledgeBase:
                 self.remove_whole_part_pair(loop_path[-2], loop_path[-1], True)
 
         # check_whole_part_loop()
+        
+        def load_ProbDA(prob_da_dir, probDA_dict):
+            try:
+                with open(prob_da_dir, 'r', encoding='UTF-8') as infile:
+                    for line in infile:
+                        if line[0] == ' ':
+                            continue
+                        line = line.strip()
+                        line = line.split('\t')
+                        probDA_dict[(line[2], line[0])] = int(line[3])
+            except Exception as e:
+                print(e)
 
+        load_ProbDA(prob_da_dir, self.probDA)
+        
         self.write_js_variables(True)
 
     def write_knowledge_base(self, entity_word_dir, attribute_word_dir, description_word_dir, whole_part_dir,
@@ -1454,7 +1471,7 @@ class KnowledgeBase:
 
         # APIs for knowledge base modify ----end----
 
-
+'''
 class KnowledgeDataBase:
     def __init__(self, config_path, js_cache_path, product_name="汽车", db_type='local'):
         if db_type == 'local':
@@ -2629,7 +2646,7 @@ def knowledge_data_base_init(product='汽车', db_type='local'):
     kb = KnowledgeDataBase(os.path.abspath('./DataBaseConfig'), os.path.abspath('./static/kb_json'), product, db_type)
     print("Knowledge Base Initializing Done")
     return kb
-
+'''
 
 def knowledge_base_init(product='汽车'):
     config = KnowledgeBaseConfig(product)
@@ -2646,7 +2663,8 @@ def knowledge_base_init(product='汽车'):
                                       target_description_sentiment_dir=config.TARGET_DESCRIPTION_SENTIMENT_PATH,
                                       entity_synonym_dir=config.ENTITY_SYNONYM_PATH,
                                       attribute_synonym_dir=config.ATTRIBUTE_SYNONYM_PATH, product_name=product,
-                                      js_cache_path=config.JS_CACHE_PATH)
+                                      js_cache_path=config.JS_CACHE_PATH,
+                                      prob_da_dir=config.PROB_DA_PATH)
         knowledge.save(config.CACHE_PATH)
     print("Knowledge Base Initializing Done")
     print("Entity and synonyms: %d" % (len(knowledge.entitySet) + len(knowledge.pairSE)))
@@ -2658,3 +2676,7 @@ def knowledge_base_init(product='汽车'):
     print("Entity-Synonym edges: %d" % sum([len(y) for _, y in knowledge.pairES.items()]))
     print("Entity-Synonym edges: %d" % sum([len(y) for _, y in knowledge.pairAS.items()]))
     return knowledge
+
+if __name__ == '__main__':
+    knowledge = knowledge_base_init()
+    print(knowledge)
