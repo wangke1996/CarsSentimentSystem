@@ -4,9 +4,12 @@
 function unescapeHTML(a) {
     return a.replace(/&lt;|&#60;/g, "<").replace(/&gt;|&#62;/g, ">").replace(/&amp;|&#38;/g, "&").replace(/*/&quot;|*//&#34;/g, '"').replace(/&apos;|&#39;/g, "'");
 }
+function sum(arr) {
+    return arr.reduce((a, b) => a + b, 0);
+}
 function loadJS(url) {
-    var response=getValue(url);
-    if(response == null)
+    var response = getValue(url);
+    if (response == null)
         return false;
     var myHead = document.getElementsByTagName("HEAD").item(0);
     var myScript = document.createElement("script");
@@ -23,6 +26,7 @@ function loadJS(url) {
     myHead.appendChild(myScript);
     return true;
 }
+
 function getValue(url) {
     var xmlHttp = null;
     var val = null;
@@ -41,6 +45,11 @@ function getValue(url) {
     {
         xmlHttp = new XMLHttpRequest();
     }
+    //加上随机请求序号，避免访问缓存
+    if (url.indexOf('?') == -1)
+        url += '?t=' + Math.random();
+    else
+        url += '&t=' + Math.random();
     //采用同步加载
     xmlHttp.open("GET", url, false);
     //发送同步请求，如果浏览器为Chrome或Opera，必须发布后才能运行，不然会报错
@@ -54,4 +63,42 @@ function getValue(url) {
         }
     }
     return val;
+}
+
+function isElementInViewport(el) {
+
+    //special bonus for those using jQuery
+    if (typeof jQuery === "function" && el instanceof jQuery) {
+        el = el[0];
+    }
+
+    var rect = el.getBoundingClientRect();
+    // return (rect.bottom >= 0 && rect.right >= 0 && rect.top <= (window.innerHeight || document.documentElement.clientHeight) && rect.left <= (window.innerWidth || document.documentElement.clientWidth));
+
+    // //完全可见
+    // return (
+    //     rect.top >= 0 &&
+    //     rect.left >= 0 &&
+    //     rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) && /*or $(window).height() */
+    //     rect.right <= (window.innerWidth || document.documentElement.clientWidth) /*or $(window).width() */
+    // );
+    //部分可见
+    return (
+        rect.bottom >= 0 &&
+        rect.right >= 0 &&
+        rect.top <= (window.innerHeight || document.documentElement.clientHeight) && /*or $(window).height() */
+        rect.left <= (window.innerWidth || document.documentElement.clientWidth) /*or $(window).width() */
+    );
+}
+function onVisibilityChange(el, callback) {
+    var old_visible;
+    return function () {
+        var visible = isElementInViewport(el);
+        if (visible != old_visible) {
+            old_visible = visible;
+            if (visible && typeof callback == 'function') {
+                callback();
+            }
+        }
+    }
 }

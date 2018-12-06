@@ -532,7 +532,7 @@ class KnowledgeBase:
         neu_target_group = {'name': "neutral", 'children': [], 'type': "group"}
         neg_target_group = {'name': "negative", 'children': [], 'type': "group"}
         targets = self.pairDT[description]
-        if description=='高':
+        if description == '高':
             pass
         for target in targets:
             target_type = self.target_type(target)
@@ -2649,4 +2649,12 @@ def knowledge_base_init(product='汽车'):
                                       js_cache_path=config.JS_CACHE_PATH)
         knowledge.save(config.CACHE_PATH)
     print("Knowledge Base Initializing Done")
+    print("Entity and synonyms: %d" % (len(knowledge.entitySet) + len(knowledge.pairSE)))
+    print("Attribute and synonyms: %d" % (len(knowledge.attributeSet) + len(knowledge.pairSA)))
+    print("Descriptions: %d" % len(knowledge.descriptionSet))
+    print("Entity-Attribute edges: %d" % sum([len(y) for _, y in knowledge.pairEA.items()]))
+    print("Whole-Part edges: %d" % sum([len(y) for _, y in knowledge.pairWP.items()]))
+    print("Target-Description edges: %d" % sum([len(y) for _, y in knowledge.pairTD.items()]))
+    print("Entity-Synonym edges: %d" % sum([len(y) for _, y in knowledge.pairES.items()]))
+    print("Entity-Synonym edges: %d" % sum([len(y) for _, y in knowledge.pairAS.items()]))
     return knowledge
