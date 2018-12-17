@@ -94,9 +94,17 @@ function onVisibilityChange(el, callback) {
     var old_visible;
     return function () {
         var visible = isElementInViewport(el);
-        if (visible != old_visible) {
+        // // 每次出现均调用callback
+        // if (visible != old_visible) {
+        //     old_visible = visible;
+        //     if (visible && typeof callback == 'function') {
+        //         callback();
+        //     }
+        // }
+        // 首次出现调用callback
+        if (visible && visible != old_visible) {
             old_visible = visible;
-            if (visible && typeof callback == 'function') {
+            if (typeof callback == 'function') {
                 callback();
             }
         }

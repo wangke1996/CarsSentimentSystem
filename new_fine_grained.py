@@ -8,8 +8,8 @@ import os
 import math
 import numpy as np
 from pyltp import Segmentor, Postagger, Parser
-from preprocess import WordSet, WordEmbedding, KnowledgeBase
-from sentiment_analysis import SentimentAnalysis
+# from SentimentAnalysisModule.preprocess import WordSet, WordEmbedding, KnowledgeBase
+from SentimentAnalysisModule.sentiment_analysis import SentimentAnalysis
 
 _LTP_DATA_DIR = r'./ltp_data_v3.4.0'
 _segmentor = Segmentor()

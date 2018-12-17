@@ -42,6 +42,8 @@ function reviewAnalysis() {
         addText(abstract, "句。");
         summaryPie();
 
+
+
         d3.select("#batchResult").append("h3").html("评价最多");
         abstract = d3.select("#batchResult").append("p");
         addText(abstract, "大家似乎对");
@@ -54,9 +56,8 @@ function reviewAnalysis() {
         addText(abstract, "格外关心，涉及的评论片段最多：</br>");
         mostCommon();
 
-        // var div = d3.select("#batchResult").append("div").attr("class", "row collapse-at-2");
-        // var divBest = div.append("div").attr("class", "6u");
-        // var divWorst = div.append("div").attr("class", "6u");
+
+
         var div = d3.select("#batchResult").append("div").attr("class","bestAndWorst").append("section").attr("class", "box special features").append("div").attr("class", "features-row");
         var divBest = div.append("section");
         var divWorst = div.append("section");
@@ -80,6 +81,9 @@ function reviewAnalysis() {
         addText(abstract, "等普遍遭到诟病，几乎清一色差评！</br>");
         drawList(divBest, bestTarget, [0]);
         drawList(divWorst, worstTarget, [2]);
+
+
+
         function drawList(divElement, list, tags = [0, 1, 2]) {
             var ul = divElement.append("ul");
             showTop = list.length;

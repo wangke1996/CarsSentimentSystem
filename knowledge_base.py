@@ -2,7 +2,7 @@
 import os
 import json
 import pickle
-#import pyorient
+import pyorient
 import itertools
 
 
@@ -1471,7 +1471,7 @@ class KnowledgeBase:
 
         # APIs for knowledge base modify ----end----
 
-'''
+
 class KnowledgeDataBase:
     def __init__(self, config_path, js_cache_path, product_name="汽车", db_type='local'):
         if db_type == 'local':
@@ -1696,7 +1696,7 @@ class KnowledgeDataBase:
         :param include_synonyms_flag: (bool)whether to include synonyms entities
         :return: (bool) if the input word is an entity in the knowledge base
         """
-        if len(self.client.query("select from Entity where name='%s'" % word)) > 0:
+        if len(self.client.query("select @rid from Entity where name='%s'" % word)) > 0:
             return True
         if include_synonyms_flag and len(self.client.query("select from EntitySyn where name='%s'" % word)) > 0:
             return True
@@ -1709,9 +1709,9 @@ class KnowledgeDataBase:
         :param include_synonyms_flag: (bool)whether to include synonyms attributes
         :return: (bool) if the input word is an attribute in the knowledge base
         """
-        if len(self.client.query("select from Attribute where name='%s'" % word)) > 0:
+        if len(self.client.query("select @rid from Attribute where name='%s'" % word)) > 0:
             return True
-        if include_synonyms_flag and len(self.client.query("select from AttriSyn where name='%s'" % word)) > 0:
+        if include_synonyms_flag and len(self.client.query("select @rid from AttriSyn where name='%s'" % word)) > 0:
             return True
         return False
 
@@ -1721,7 +1721,7 @@ class KnowledgeDataBase:
         :param word:  (string) input word
         :return: (bool) if the word is a description in the knowledge base
         """
-        return len(self.client.query("select from Description where name='%s'" % word)) > 0
+        return len(self.client.query("select @rid from Description where name='%s'" % word)) > 0
 
     def have_target(self, word, include_synonyms_flag=False):
         """
@@ -1839,6 +1839,7 @@ class KnowledgeDataBase:
         """
         if self.have_entity(target, False):
             return [x._in for x in self.client.query("select in.name from ESYN where out.name='%s'" % target, -1)]
+            # self.client.query("select expand(out('ESYN').name) from Entity where name='%s'" % target, -1)
         elif self.have_attribute(target, False):
             return [x._in for x in self.client.query("select in.name from ASYN where out.name='%s'" % target, -1)]
         else:
@@ -2646,7 +2647,7 @@ def knowledge_data_base_init(product='汽车', db_type='local'):
     kb = KnowledgeDataBase(os.path.abspath('./DataBaseConfig'), os.path.abspath('./static/kb_json'), product, db_type)
     print("Knowledge Base Initializing Done")
     return kb
-'''
+
 
 def knowledge_base_init(product='汽车'):
     config = KnowledgeBaseConfig(product)

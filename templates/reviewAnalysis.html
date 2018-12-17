@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>评论解析系统</title>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+    <!--[if lte IE 8]>
+    <script src="static/WebTemplate/css/ie/html5shiv.js"></script><![endif]-->
+    <script src="static/WebTemplate/js/jquery.min.js"></script>
+    <script src="static/WebTemplate/js/jquery.dropotron.min.js"></script>
+    <script src="static/WebTemplate/js/jquery.scrollgress.min.js"></script>
+    <script src="static/WebTemplate/js/skel.min.js"></script>
+    <script src="static/WebTemplate/js/skel-layers.min.js"></script>
+    <script src="static/WebTemplate/js/init.js"></script>
+    <script type="text/javascript" src="http://d3js.org/d3.v5.min.js"></script>
+    <script type="text/javascript" src="static/js/myjs/myFunctionLibs.js"></script>
+    <script type="text/javascript" src="static/js/myjs/reviewAnalysis.js"></script>
+    <noscript>
+        <link rel="stylesheet" href="static/WebTemplate/css/skel.css"/>
+        <link rel="stylesheet" href="static/WebTemplate/css/style.css"/>
+        <link rel="stylesheet" href="static/WebTemplate/css/style-wide.css"/>
+    </noscript>
+    <!--[if lte IE 8]>
+    <link rel="stylesheet" href="static/WebTemplate/css/ie/v8.css"/><![endif]-->
+    <style>
+        #batchResult p {
+            margin: 2em 0 0 0;
+        }
+
+        #batchResult .box {
+            border-radius: 0;
+            padding: 0;
+        }
+        #batchResult h3{
+            text-align: center;
+            font-weight: bold;
+        }
+        #batchResult header h3{
+            font-size: 4em;
+        }
+
+
+        #batchResult .box.special {
+            text-align: left;
+        }
+
+
+        #batchResult svg path {
+            stroke: white;
+            stroke-width: 3;
+        }
+
+        #batchResult svg .piePos {
+            fill: lime;
+        }
+
+        #batchResult svg .pieNeu {
+            fill: yellow;
+        }
+
+        #batchResult svg .pieNeg {
+            fill: red;
+        }
+
+        #batchResult ul li {
+            padding-top: 1em;
+        }
+
+        #batchResult ul li span {
+            text-anchor: middle;
+            vertical-align: middle;
+        }
+
+        #batchResult ul li .targetName {
+            display: inline-block;
+            width: 4em;
+            font-weight: bold;
+            font-size: 1.5em;
+        }
+
+        #batchResult p .targetName {
+            font-weight: bold;
+            font-size: 2em;
+            color: orange;
+        }
+
+        /*#batchResult .bestAndWorst ul li .targetName {*/
+            /*display: inline-block;*/
+            /*width: 4em;*/
+            /*font-weight: bold;*/
+            /*font-size: 1.5em;*/
+        /*}*/
+
+        #batchResult .bestAndWorst p .targetName {
+            font-weight: bold;
+            font-size: 1.5em;
+            color: orange;
+        }
+
+        #batchResult ul li .targetRect svg {
+            display: inline-block;
+            vertical-align: middle;
+            height: 2em;
+        }
+
+        #batchResult ul li .targetPie svg {
+            display: inline-block;
+            vertical-align: middle;
+            height: 100px;
+            width: 100px;
+        }
+
+        #batchResult ul li .freq {
+            margin-left: 2em;
+        }
+
+        #batchResult p .level1 {
+            font-size: 2em;
+            font-weight: bold;
+            color: gold;
+        }
+
+        #batchResult p .level2 {
+            font-size: 2em;
+            font-weight: bold;
+            color: lime;
+        }
+
+        #batchResult p .level3 {
+            font-size: 2em;
+            font-weight: bold;
+            color: green;
+        }
+
+        #batchResult p .level4 {
+            font-size: 2em;
+            font-weight: bold;
+            color: darkred;
+        }
+
+        #batchResult p .level5 {
+            font-size: 2em;
+            font-weight: bold;
+            color: darkgray;
+        }
+
+        #batchResult p .level6 {
+            font-size: 2em;
+            font-weight: bold;
+            color: black;
+        }
+
+        #batchResult p .number {
+            font-size: 2em;
+            font-weight: bold;
+            color: black;
+        }
+
+        #batchResult p .numberPos {
+            font-size: 2em;
+            font-weight: bold;
+            color: lime;
+        }
+
+        #batchResult p .numberNeu {
+            font-size: 2em;
+            font-weight: bold;
+            color: yellow;
+        }
+
+        #batchResult p .numberNeg {
+            font-size: 2em;
+            font-weight: bold;
+            color: red;
+        }
+
+        /*#batchResult p .targetName {*/
+        /*font-size: 2em;*/
+        /*font-weight: bold;*/
+        /*color: orange;*/
+        /*}*/
+    </style>
+</head>
+<body>
+<!-- Header -->
+<header id="header" class="skel-layers-fixed">
+    <h1>by NGN Lab</h1>
+    <nav id="nav">
+        <ul>
+            <li><a href="/index">主页</a></li>
+            <li>
+                <a href="" class="icon fa-angle-down">导航</a>
+                <ul>
+                    <li><a href="/introduction">系统介绍</a></li>
+                    <li>
+                        <a href="/analysis">评论解析</a>
+                        <ul>
+                            <li><a href="/analysis#single">单条解析</a></li>
+                            <li><a href="/analysis#batch">批量解析</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a href="/knowledge_base">知识库展示</a>
+                        <ul>
+                            <li><a href="/knowledge_base#ent_kb">实体-属性</a></li>
+                            <li><a href="/knowledge_base#attr_kb">属性-情感</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/contact">联系我们</a></li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+</header>
+<!-- Main -->
+<section id="main" class="container">
+    <header>
+        <h2>文本评论解析</h2>
+        <p>{{product}}评论文本细粒度情感分析</p>
+    </header>
+    <div class="box">
+        <h3>单条评论解析</h3>
+        <form action="#" method="post">
+            <div class="row uniform half">
+                <div class="12u">
+                    <textarea name="message" id="message" placeholder="粘贴待解析的单条评论" rows="6"></textarea>
+                </div>
+            </div>
+            <div class="row uniform">
+                <!--<div class="12u">-->
+                <ul class="actions">
+                    <li><input type="submit" value="提交"></li>
+                    <li><input class="alt" type="reset" value="清空"></li>
+                </ul>
+                <!--</div>-->
+            </div>
+        </form>
+        <div id="singleResult"></div>
+    </div>
+    <div class="box">
+        <h3>批量评论解析</h3>
+        <form action="#" method="post">
+            <div class="row uniform half">
+                <div class="12u">
+                    <input type="file" name="upload" accept=".txt">
+                </div>
+            </div>
+            <div class="row uniform">
+                <div class="12u">
+                    <input type="submit" value="上传">
+                </div>
+            </div>
+        </form>
+        <div id="batchResult"></div>
+    </div>
+    <script type="text/javascript">reviewAnalysis()</script>
+    <footer id="footer">
+        <ul class="icons">
+            <li><a href="#" class="icon fa-twitter"><span class="label">Twitter</span></a></li>
+            <li><a href="#" class="icon fa-facebook"><span class="label">Facebook</span></a></li>
+            <li><a href="#" class="icon fa-instagram"><span class="label">Instagram</span></a></li>
+            <li><a href="#" class="icon fa-github"><span class="label">Github</span></a></li>
+            <li><a href="#" class="icon fa-dribbble"><span class="label">Dribbble</span></a></li>
+            <li><a href="#" class="icon fa-google-plus"><span class="label">Google+</span></a></li>
+        </ul>
+        <ul class="copyright">
+            <li>&copy; Tsinghua University. All rights reserved.</li>
+            <a href="./contact"> Contact Us</a>
+        </ul>
+    </footer>
+</section>
+</body>
+</html>
