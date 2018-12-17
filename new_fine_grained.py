@@ -11,7 +11,11 @@ from pyltp import Segmentor, Postagger, Parser
 # from SentimentAnalysisModule.preprocess import WordSet, WordEmbedding, KnowledgeBase
 from SentimentAnalysisModule.sentiment_analysis import SentimentAnalysis
 
-_LTP_DATA_DIR = r'./ltp_data_v3.4.0'
+if os.name.find('nt') != -1:
+    _LTP_DATA_DIR = r'./ltp_data_v3.4.0'
+else:
+    _LTP_DATA_DIR = r'/data/wangke/ltp_data_v3.4.0'
+
 _segmentor = Segmentor()
 _postagger = Postagger()
 _parser = Parser()
