@@ -73,6 +73,7 @@
                 <!--<div class="12u">-->
                 <ul class="actions">
                     <li><input type="submit" value="提交"></li>
+                    <li><a class="button special" href="#" id="singleExampleButton">样例</a></li>
                     <li><input class="alt" type="reset" value="清空"></li>
                 </ul>
                 <!--</div>-->
@@ -96,6 +97,7 @@
         </form>
         <div id="batchResult"></div>
     </div>
+    <script type="text/javascript">initExample()</script>
     {% if singleResult %}
     <script type="text/javascript">singleAnalysis("{{ singleResult }}")</script>
     {% endif %}
