@@ -1,0 +1,257 @@
+
+#singleResult table thead {
+    font-weight: bold;
+    font-size: 1.5em;
+}
+
+#singleResult table .trPOS td {
+    color: lime;
+}
+
+#singleResult table .trNEU td {
+    color: yellow;
+}
+
+#singleResult table .trNEG td {
+    color: red;
+}
+
+#batchResult p {
+    margin: 2em 0 0 0;
+}
+
+#batchResult .box {
+    border-radius: 0;
+    padding: 0;
+}
+
+#batchResult .title {
+    text-align: center;
+    font-weight: bold;
+    font-size: 2em;
+    padding-top: 1.5em;
+
+}
+
+/*#batchResult header h3 {*/
+/*font-size: 4em;*/
+/*}*/
+
+#batchResult .box.special {
+    text-align: left;
+}
+
+#batchResult svg path {
+    stroke: white;
+    stroke-width: 3;
+}
+
+#batchResult svg .piePos {
+    fill: lime;
+}
+
+#batchResult svg .pieNeu {
+    fill: yellow;
+}
+
+#batchResult svg .pieNeg {
+    fill: red;
+}
+
+#batchResult ul li {
+    padding-top: 1em;
+}
+
+#batchResult ul li span {
+    text-anchor: middle;
+    vertical-align: middle;
+}
+
+#batchResult ul li .targetName {
+    display: inline-block;
+    width: 4em;
+    font-weight: bold;
+    font-size: 1.5em;
+}
+
+#batchResult p .targetName {
+    font-weight: bold;
+    font-size: 2em;
+    color: orange;
+}
+
+/*#batchResult .bestAndWorst ul li .targetName {*/
+/*display: inline-block;*/
+/*width: 4em;*/
+/*font-weight: bold;*/
+/*font-size: 1.5em;*/
+/*}*/
+
+#batchResult .bestAndWorst p .targetName {
+    font-weight: bold;
+    font-size: 1.5em;
+    color: orange;
+}
+
+#batchResult ul li .targetRect svg {
+    display: inline-block;
+    vertical-align: middle;
+    height: 2em;
+}
+
+#batchResult ul li .targetPie svg {
+    display: inline-block;
+    vertical-align: middle;
+    height: 120px;
+    width: 120px;
+}
+
+#batchResult ul li .freq {
+    margin-left: 2em;
+}
+
+#batchResult ul li ul {
+    margin: 0 0 0 0;
+}
+
+#batchResult ul li ul li {
+    padding-top: 0;
+}
+
+#batchResult p .level1 {
+    font-size: 2em;
+    font-weight: bold;
+    color: gold;
+}
+
+#batchResult p .level2 {
+    font-size: 2em;
+    font-weight: bold;
+    color: lime;
+}
+
+#batchResult p .level3 {
+    font-size: 2em;
+    font-weight: bold;
+    color: green;
+}
+
+#batchResult p .level4 {
+    font-size: 2em;
+    font-weight: bold;
+    color: darkred;
+}
+
+#batchResult p .level5 {
+    font-size: 2em;
+    font-weight: bold;
+    color: darkgray;
+}
+
+#batchResult p .level6 {
+    font-size: 2em;
+    font-weight: bold;
+    color: black;
+}
+
+#batchResult p .number {
+    font-size: 2em;
+    font-weight: bold;
+    color: black;
+}
+
+#batchResult p .numberPos {
+    font-size: 2em;
+    font-weight: bold;
+    color: lime;
+}
+
+#batchResult p .numberNeu {
+    font-size: 2em;
+    font-weight: bold;
+    color: yellow;
+}
+
+#batchResult p .numberNeg {
+    font-size: 2em;
+    font-weight: bold;
+    color: red;
+}
+
+#batchResult ul ul {
+    list-style-type: square;
+    font-weight: bold;
+}
+
+#batchResult ul ul a {
+    font-size: 1.2em;
+}
+
+#batchResult ul ul ul {
+    list-style-type: circle;
+}
+
+#batchResult .posReview {
+    color: green;
+}
+
+#batchResult .neuReview {
+    color: orange;
+}
+
+#batchResult .negReview {
+    color: red;
+}
+
+#targetDetail svg text {
+    text-anchor: middle;
+    font-weight: bold;
+}
+
+#targetDetail svg line {
+    stroke: royalblue;
+    stroke-width: 3;
+}
+
+.autocomplete {
+    /*the container must be positioned relative:*/
+    position: relative;
+    display: inline-block;
+}
+
+.autocomplete-items {
+    /*position: absolute;*/
+    border: 1px solid #d4d4d4;
+    border-bottom: none;
+    border-top: none;
+    z-index: 99;
+    /*position the autocomplete items to be the same width as the container:*/
+    top: 100%;
+    left: 0;
+    right: 0;
+}
+
+.autocomplete-items div {
+    padding: 10px;
+    cursor: pointer;
+    background-color: #fff;
+    border-bottom: 1px solid #d4d4d4;
+}
+
+.autocomplete-items div span {
+    float: right;
+    color: #e89980;
+    padding-left: 2em;
+}
+
+.autocomplete-items div:hover {
+    /*when hovering an item:*/
+    background-color: #e9e9e9;
+}
+
+.autocomplete-active {
+    /*when navigating through the items using the arrow keys:*/
+    background-color: #d4d4d4 !important;
+    /*background-color: DodgerBlue !important;*/
+    /*color: #ffffff;*/
+}

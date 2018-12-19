@@ -6,6 +6,7 @@ import sys
 import re
 import os
 import math
+import time
 import numpy as np
 from pyltp import Segmentor, Postagger, Parser
 # from SentimentAnalysisModule.preprocess import WordSet, WordEmbedding, KnowledgeBase
@@ -168,7 +169,7 @@ def sentiment_analysis(sent, words, knowledgebase, sentiments, debug):
             print('Get target: ' + target + ' description: ' + description)
 
         # target 为属性
-        if (target in knowledgebase.attributeSet) | (knowledgebase.pairSA.setdefault(target, False)):
+        if (target in knowledgebase.attributeSet) or (knowledgebase.pairSA.setdefault(target, False)):
             if debug:
                 print('''It's attribute''')
             if knowledgebase.pairSA.setdefault(target, False):
@@ -200,7 +201,7 @@ def sentiment_analysis(sent, words, knowledgebase, sentiments, debug):
                     entityname, entitynum = _get_this_entity(target_num)
                     if entityname is not None:
                         sentiment = list()
-                        confidence = confidence * math.log(knowledgebase.probDA.get((description, target), 0) + 1)
+                        confidence = confidence * math.log(knowledgebase.probDA.get((description, target), 0) + 1.1)
                         sentiment.append({'entity': entityname,
                                           'attribute': target,
                                           'description': description,
@@ -212,7 +213,7 @@ def sentiment_analysis(sent, words, knowledgebase, sentiments, debug):
                     else:
                         in_sent = True
                         confidence = confidence * 2
-                confidence = confidence * math.log(knowledgebase.probDA.get((description, target), 0) + 1)
+                confidence = confidence * math.log(knowledgebase.probDA.get((description, target), 0) + 1.1)
                 sentiment.append({'entity': x,
                                   'attribute': target,
                                   'description': description,
@@ -224,10 +225,11 @@ def sentiment_analysis(sent, words, knowledgebase, sentiments, debug):
                 for x in sentiment:
                     if x.get('entity') == '汽车':
                         x['confidence'] = x.get('confidence') * 2
-            sentiments.append(sentiment)
+            if len(sentiment) > 0:
+                sentiments.append(sentiment)
 
         # target 为实体
-        elif (target in knowledgebase.entitySet) | (knowledgebase.pairSE.setdefault(target, False)):
+        elif (target in knowledgebase.entitySet) or (knowledgebase.pairSE.setdefault(target, False)):
             if debug:
                 print('''It's entity''')
             if knowledgebase.pairSE.setdefault(target, False):
@@ -258,7 +260,7 @@ def sentiment_analysis(sent, words, knowledgebase, sentiments, debug):
                     sonname, sonnum = _get_this_attribute(target_num)
                     if sonname is not None:
                         sentiment = list()
-                        confidence = confidence * math.log(knowledgebase.probDA.get((description, sonname), 0) + 1)
+                        confidence = confidence * math.log(knowledgebase.probDA.get((description, sonname), 0) + 1.1)
                         sentiment.append({'entity': target,
                                           'attribute': sonname,
                                           'description': description,
@@ -270,7 +272,7 @@ def sentiment_analysis(sent, words, knowledgebase, sentiments, debug):
                     else:
                         in_sent = True
                         confidence = confidence * 2
-                confidence = confidence * math.log(knowledgebase.probDA.get((description, x), 0) + 1)
+                confidence = confidence * math.log(knowledgebase.probDA.get((description, x), 0) + 1.1)
                 sentiment.append({'entity': target,
                                   'attribute': x,
                                   'description': description,
@@ -282,7 +284,9 @@ def sentiment_analysis(sent, words, knowledgebase, sentiments, debug):
                 for x in sentiment:
                     if x.get('entity') == '汽车':
                         x['confidence'] = x.get('confidence') * 2
-            sentiments.append(sentiment)
+
+            if len(sentiment) > 0:
+                sentiments.append(sentiment)
 
         # target 不在库中
         else:
@@ -325,6 +329,8 @@ def sort_sentiments(sentiments):
                     if condition.get('confidence') * last_score[idx2] > this_score[idx1]:
                         this_phases[idx1] = last_phases[idx2] + [condition]
                         this_score[idx1] = condition.get('confidence') * last_score[idx2]
+    if len(this_phases) == 0:
+        return []
     result = this_phases[np.argmax(this_score)]
     return result
 
@@ -345,12 +351,18 @@ def analysis_comment(text, knowledgebase=None, debug=False, file=sys.stdout):
     sents = split_sentences(text)
 
     sentiments = list()
-
+    start = time.time()
     for sent_idx, sent in enumerate(sents):
         sent, words = grammar_analysis(text=sent, knowledgebase=knowledgebase, debug=debug)
         sentiments = sentiment_analysis(sent=sent, words=words, knowledgebase=knowledgebase, sentiments=sentiments,
                                         debug=debug)
+        if sent_idx % 100 == 99:
+            print("%d/%d comments analyzed. time use: %.2fs %s" % (
+            sent_idx + 1, len(sents), time.time() - start, ''.join(words)))
+    end = time.time()
+    print("analysis done, time use: %.2f" % (end - start))
     sentiments = sort_sentiments(sentiments)
+    print("sort done, time use: %.2f" % (time.time() - end))
     return sentiments
 
 
@@ -380,7 +392,7 @@ if __name__ == '__main__':
     ltp_init()
     knowledgebase = knowledge_base.knowledge_base_init()
     sentence = '充沛的动力、炫酷的踏板造型、烦人的噪音再加上本田雷达家族运动基因的传承'
-    sentiments = analysis_comment(sentence, knowledgebase=knowledgebase, debug=True, file=sys.stdout)
+    sentiments = analysis_comment(sentence, knowledgebase=knowledgebase, debug=False, file=sys.stdout)
     index = dict()
     index = update_index(sentiments, index)
     for x in sentiments:

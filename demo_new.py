@@ -1,23 +1,31 @@
 # -*- coding: UTF-8 -*-
 import sys
 from flask import Flask, request, render_template, make_response
-
+from werkzeug.utils import secure_filename
 from global_var import gl
 from knowledge_base import knowledge_base_init, knowledge_data_base_init
 from SentimentAnalysisModule.preprocess import WordSet, WordEmbedding, KnowledgeBase
-from product_profile import build_test_datas
+from product_profile import build_test_datas, single_analysis
+from new_fine_grained import ltp_init
 from json import dumps
-
-
+import os
+import pickle as pkl
 
 # import pyorient
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = './uploads'
+app.config['CACHE_FOLDER'] = './caches'
 
 
 def gloabal_var_init(product='汽车'):
     gl.set_value('PRODUCT', product)
     gl.set_value('KNOWLEDGE_BASE', knowledge_base_init(product))
+    ltp_init()
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER'])
+    if not os.path.exists(app.config['CACHE_FOLDER']):
+        os.makedirs(app.config['CACHE_FOLDER'])
 
 
 @app.route('/index', methods=['GET', 'POST'])
@@ -25,20 +33,71 @@ def home():
     return render_template('home.html')
 
 
-@app.route('/analysis_test', methods=['GET', 'POST'])
+@app.route('/index_test', methods=['GET', 'POST'])
+def indexs():
+    return render_template('index.html')
+
+
+def file_hash(file_path):
+    import hashlib
+    md5 = hashlib.md5()
+    buf_size = 65536
+    with open(file_path, 'rb') as f:
+        while True:
+            data = f.read(buf_size)
+            if not data:
+                break
+            md5.update(data)
+    return md5
+
+
+def result_from_cache(file_name):
+    md5 = file_hash(os.path.join(app.config['UPLOAD_FOLDER'], file_name))
+    cache_path = os.path.join(app.config['CACHE_FOLDER'], md5.hexdigest() + '.pkl')
+    if os.path.exists(cache_path):
+        with open(cache_path, 'rb') as f:
+            result = pkl.load(f)
+    else:
+        from product_profile import batch_analysis
+        with open(os.path.join(app.config['UPLOAD_FOLDER'], file_name), encoding='utf8') as f:
+            texts = f.read()
+        target_freq = batch_analysis(texts)
+        result = dumps(target_freq)
+        with open(cache_path, 'wb') as f:
+            pkl.dump(result, f)
+    return result
+
+
+@app.route('/analysis', methods=['GET', 'POST'])
 def analysis():
+    batchResult = None
+    singleResult = None
+    if request.method == 'POST':
+        if 'upload' in request.files and request.files['upload'].filename != ' ':
+            upload_file = request.files['upload']
+            file_name = secure_filename(upload_file.filename)
+            upload_file.save(os.path.join(app.config['UPLOAD_FOLDER'], file_name))
+            batchResult = result_from_cache(file_name)
+        if 'review' in request.form and request.form['review'] != '':
+            review = request.form['review']
+            sentiments = single_analysis(review)
+            singleResult = dumps(sentiments)
     product = gl.get_value("PRODUCT", '汽车')
-    return render_template("reviewAnalysis.html", product=product)
+    return render_template("reviewAnalysis.html", product=product, batchResult=batchResult, singleResult=singleResult)
 
 
-@app.route('/results', methods=['GET', 'POST'])
+@app.route('/analysis_test', methods=['GET', 'POST'])
 def analysis_test():
-    from product_profile import test
-    target_freq = test()
-    return dumps(target_freq)
+    batchResult = None
+    if request.method == 'POST':
+        from product_profile import batch_test
+        target_freq = batch_test()
+        batchResult = dumps(target_freq)
+    product = gl.get_value("PRODUCT", '汽车')
+    return render_template("reviewAnalysis.html", product=product, batchResult=batchResult)
 
 
-@app.route('/knowledge_graph_test', methods=['GET', 'POST'])
+@app.route('/knowledge_graph', methods=['GET', 'POST'])
 def knowledge_graph():
     product = gl.get_value("PRODUCT", '汽车')
     return render_template("knowledgeGraph.html", product=product)
@@ -61,6 +120,11 @@ def kb_graph():
     resp.cache_control.max_age = -1
 
     return resp
+
+
+@app.route('/antd', methods=['GET', 'POST'])
+def antd_test():
+    return render_template('antdTest.html')
 
 
 def orient_test():
@@ -115,9 +179,6 @@ def orient_test():
         hit_count = hit_count + flag
     end_time = time.time()
     print('db local test %d node query, hit %d, time use: %f' % (4 * test_case, hit_count, end_time - start_time))
-
-
-
 
 
 if __name__ == '__main__':

@@ -1,172 +1,153 @@
 <!DOCTYPE HTML>
 
 <html>
-	<head>
-		<title>汽车评论解析系统</title>
-		<meta http-equiv="content-type" content="text/html; charset=utf-8" />
-		<meta name="description" content="" />
-		<meta name="keywords" content="" />
-		<!--[if lte IE 8]><script src="{{ url_for('static',filename='WebTemplate/css/ie/html5shiv.js') }}"></script><![endif]-->
-		<script src="{{ url_for('static',filename='WebTemplate/js/jquery.min.js') }}"></script>
-		<script src="{{ url_for('static',filename='WebTemplate/js/jquery.dropotron.min.js') }}"></script>
-		<script src="{{ url_for('static',filename='WebTemplate/js/jquery.scrollgress.min.js') }}"></script>
-		<script src="{{ url_for('static',filename='WebTemplate/js/skel.min.js') }}"></script>
-		<script src="{{ url_for('static',filename='WebTemplate/js/skel-layers.min.js') }}"></script>
-		<script src="{{ url_for('static',filename='WebTemplate/js/init.js') }}"></script>
-		<script src="static/js/myjs/knowledgeGraph_subset.js"></script>
-		<script src="static/js/thirdparty/d3.js"></script>
-		<noscript>
-			<link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='WebTemplate/css/skel.css') }}" />
-			<link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='WebTemplate/css/style.css') }}" />
-			<link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='WebTemplate/css/style-wide.css') }}" />
-		</noscript>
-		<!--[if lte IE 8]><link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='WebTemplate/css/ie/v8.css') }}" /><![endif]-->
-	</head>
-	<body class="landing">
+<head>
+    <title>汽车评论解析系统</title>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+    <meta name="description" content=""/>
+    <meta name="keywords" content=""/>
+    <!--[if lte IE 8]>
+    <script src="{{ url_for('static',filename='WebTemplate/css/ie/html5shiv.js') }}"></script><![endif]-->
+    <script src="{{ url_for('static',filename='WebTemplate/js/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='WebTemplate/js/jquery.dropotron.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='WebTemplate/js/jquery.scrollgress.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='WebTemplate/js/skel.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='WebTemplate/js/skel-layers.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='WebTemplate/js/init.js') }}"></script>
+    <script src="static/js/thirdparty/d3.js"></script>
+    <noscript>
+        <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='WebTemplate/css/skel.css') }}"/>
+        <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='WebTemplate/css/style.css') }}"/>
+        <link rel="stylesheet" type="text/css"
+              href="{{ url_for('static',filename='WebTemplate/css/style-wide.css') }}"/>
+    </noscript>
+    <!--[if lte IE 8]>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='WebTemplate/css/ie/v8.css') }}"/>
+    <![endif]-->
+</head>
+<body class="landing">
 
-		<!-- Header -->
-			<header id="header" class="alt">
-				<h1>by NGN Lab</h1>
-				<nav id="nav">
-					<ul>
-						<li><a href="/index">主页</a></li>
-						<li>
-							<a href="" class="icon fa-angle-down">导航</a>
-							<ul>
-								<li><a href="/introduction">系统介绍</a></li>
-								<li>
-									<a href="/analysis">评论解析</a>
-									<ul>
-										<li><a href="/analysis#single">单条解析</a></li>
-										<li><a href="/analysis#batch">批量解析</a></li>
-									</ul>
-								</li>
-								<li>
-									<a href="/knowledge_base">知识库展示</a>
-									<ul>
-										<li><a href="/knowledge_base#ent_kb">实体-属性</a></li>
-										<li><a href="/knowledge_base#attr_kb">属性-情感</a></li>
-									</ul>
-								</li>
-								<li><a href="/contact">联系我们</a></li>
-							</ul>
-						</li>
-					</ul>
-				</nav>
-			</header>
+<!-- Header -->
+<header id="header" class="alt">
+    <h1>by NGN Lab</h1>
+    <nav id="nav">
+        <ul>
+            <li><a href="/index">主页</a></li>
+            <li>
+                <a href="" class="icon fa-angle-down">导航</a>
+                <ul>
+                    <li><a href="/introduction">系统介绍</a></li>
+                    <li><a href="/analysis">评论解析</a></li>
+                    <li><a href="/knowledge_graph">知识库展示</a></li>
+                    <li><a href="/contact">联系我们</a></li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+</header>
 
-		<!-- Banner -->
-			<section id="banner">
-				<h2>汽车评论解析系统</h2>
-				<p>汽车领域知识图谱构建及使用</p>
-				<ul class="actions">
-					<li><a href="#start" class="button special">开始使用</a></li>
-					<li><a href="/introduction" class="button">了解更多</a></li>
-				</ul>
-			</section>
-            
+<!-- Banner -->
+<section id="banner">
+    <h2>汽车评论解析系统</h2>
+    <p>汽车领域知识图谱构建及使用</p>
+    <ul class="actions">
+        <li><a href="#start" class="button special">开始使用</a></li>
+        <li><a href="/introduction" class="button">了解更多</a></li>
+    </ul>
+</section>
 
-		<!-- Main -->
-			<section id="main" class="container">
-				<section class="box special">
-				<header class="major">
-					<h2>系统介绍</h2>
-					<p>关于本评论解析系统所使用的方法和原理的简要介绍</p>
-				</header>
-				</section>
-				<div class="box" id="introduction">
-					<h3>简介</h3>
-					<li>这是一个利用<em>知识图谱</em>作为辅助的汽车评论文本自动解析系统，旨在对非格式化的自由评论文本进行<em>细粒度</em>情感分析，并通过对批量文本的解析得到某款汽车的产品画像。</li>
-                    <li>单条评论的解析中，将体现评论者对提及的实体属性的情感倾向（正向、中性、负向）。</li>
-                    <li>批量评的论解析中，将展示所有评论者对产品的各个实体属性的情感倾向分布</li>
-                    <hr/>
-					<ul class="actions">
-						<li><a href="#start" class="button special">开始使用</a></li>
-						<li><a href="/introduction" class="button">了解更多</a></li>
-					</ul>
-				</div>
-				<br />
-				<section class="box special">
-					<header class="major" id="start">
-						<h2>系统功能导航</h2>
-						<br />
-						<!--for doing stuff with your phone</h2>-->
-						<p>点击不同模块以使用对应功能</p>
-					</header>
-					<!--<span class="image featured"><img src="static/WebTemplate/images/pic01.jpg" alt="" /></span>-->
-				</section>
-						
-				<section class="box special features">
-					<div class="features-row">
-						<section>
-							<span class="icon major fa-bolt accent2"></span>
-							<h3><a href="/knowledge_base">实体-属性知识库</a></h3>
-							<p>点击以查看组成汽车的一般实体及相关属性</p>
-						</section>
-						<section>
-							<span class="icon major fa-area-chart accent3"></span>
-							<h3><a href="/knowledge_base">属性-情感知识库</a></h3>
-							<p>选择实体以查看相关属性的常用描述词及情感极性</p>
-						</section>
-					</div>
-					<div class="features-row">
-						<section>
-							<span class="icon major fa-cloud accent4"></span>
-							<h3><a href="/analysis#single">单一评论解析</a></h3>
-							<p>输入单一评论语句以进行细粒度情感分析</p>
-						</section>
-						<section>
-							<span class="icon major fa-lock accent5"></span>
-							<h3><a href="/analysis#batch">批量评论解析</a></h3>
-						<p>上传包含批量评论的文本以构建产品画像</p>
-						</section>
-					</div>
-				</section><div class="copyrights">Collect from <a href="http://www.cssmoban.com/" >企业网站模板</a></div>
-					
-				<!--<div class="row">
-					<div class="6u">
 
-						<section class="box special">
-							<span class="image featured"><img src="images/pic02.jpg" alt="" /></span>
-							<h3>Sed lorem adipiscing</h3>
-							<p>Integer volutpat ante et accumsan commophasellus sed aliquam feugiat lorem aliquet ut enim rutrum phasellus iaculis accumsan dolore magna aliquam veroeros.</p>
-							<ul class="actions">
-								<li><a href="#" class="button alt">Learn More</a></li>
-							</ul>
-						</section>
-						
-					</div>
-					<div class="6u">
+<!-- Main -->
+<section id="main" class="container">
+    <section class="box special">
+        <header class="major">
+            <h2>系统介绍</h2>
+            <p>关于本评论解析系统所使用的方法和原理的简要介绍</p>
+        </header>
+    </section>
+    <div class="box" id="introduction">
+        <h3>简介</h3>
+        <li>这是一个利用<em>知识图谱</em>作为辅助的汽车评论文本自动解析系统，旨在对非格式化的自由评论文本进行<em>细粒度</em>情感分析，并通过对批量文本的解析得到某款汽车的产品画像。</li>
+        <li>单条评论的解析中，将体现评论者对提及的实体属性的情感倾向（正向、中性、负向）。</li>
+        <li>批量评的论解析中，将展示所有评论者对产品的各个实体属性的情感倾向分布</li>
+        <hr/>
+        <ul class="actions">
+            <li><a href="#start" class="button special">开始使用</a></li>
+            <li><a href="/introduction" class="button">了解更多</a></li>
+        </ul>
+    </div>
+    <br/>
+    <section class="box special">
+        <header class="major" id="start">
+            <h2>系统功能导航</h2>
+            <br/>
+            <!--for doing stuff with your phone</h2>-->
+            <p>点击不同模块以使用对应功能</p>
+        </header>
+        <!--<span class="image featured"><img src="static/WebTemplate/images/pic01.jpg" alt="" /></span>-->
+    </section>
 
-						<section class="box special">
-							<span class="image featured"><img src="images/pic03.jpg" alt="" /></span>
-							<h3>Accumsan integer</h3>
-							<p>Integer volutpat ante et accumsan commophasellus sed aliquam feugiat lorem aliquet ut enim rutrum phasellus iaculis accumsan dolore magna aliquam veroeros.</p>
-							<ul class="actions">
-								<li><a href="#" class="button alt">Learn More</a></li>
-							</ul>
-						</section>
+    <section class="box special features">
+        <div class="features-row">
+            <section>
+                <span class="icon major fa-bolt accent2"></span>
+                <h3><a href="/knowledge_graph">知识图谱</a></h3>
+                <p>点击以查看组成汽车领域的知识图谱</p>
+            </section>
+            <section>
+                <span class="icon major fa-cloud accent4"></span>
+                <h3><a href="/analysis">评论解析</a></h3>
+                <p>输入单一评论语句或上传批量评论文本以进行细粒度情感分析</p>
+            </section>
+        </div>
+    </section>
+    <div class="copyrights">Collect from <a href="http://www.cssmoban.com/">企业网站模板</a></div>
 
-					</div>
-				</div>-->
+    <!--<div class="row">
+        <div class="6u">
 
-			</section>
-			
-		<!-- CTA -->
-		<!-- Footer -->
-			<footer id="footer">
-				<ul class="icons">
-					<li><a href="#" class="icon fa-twitter"><span class="label">Twitter</span></a></li>
-					<li><a href="#" class="icon fa-facebook"><span class="label">Facebook</span></a></li>
-					<li><a href="#" class="icon fa-instagram"><span class="label">Instagram</span></a></li>
-					<li><a href="#" class="icon fa-github"><span class="label">Github</span></a></li>
-					<li><a href="#" class="icon fa-dribbble"><span class="label">Dribbble</span></a></li>
-					<li><a href="#" class="icon fa-google-plus"><span class="label">Google+</span></a></li>
-				</ul>
-				<ul class="copyright">
-					<li>&copy; Tsinghua University. All rights reserved.</li> <a href="./contact">    Contact Us</a>
-				</ul>
-			</footer>
+            <section class="box special">
+                <span class="image featured"><img src="images/pic02.jpg" alt="" /></span>
+                <h3>Sed lorem adipiscing</h3>
+                <p>Integer volutpat ante et accumsan commophasellus sed aliquam feugiat lorem aliquet ut enim rutrum phasellus iaculis accumsan dolore magna aliquam veroeros.</p>
+                <ul class="actions">
+                    <li><a href="#" class="button alt">Learn More</a></li>
+                </ul>
+            </section>
 
-	</body>
+        </div>
+        <div class="6u">
+
+            <section class="box special">
+                <span class="image featured"><img src="images/pic03.jpg" alt="" /></span>
+                <h3>Accumsan integer</h3>
+                <p>Integer volutpat ante et accumsan commophasellus sed aliquam feugiat lorem aliquet ut enim rutrum phasellus iaculis accumsan dolore magna aliquam veroeros.</p>
+                <ul class="actions">
+                    <li><a href="#" class="button alt">Learn More</a></li>
+                </ul>
+            </section>
+
+        </div>
+    </div>-->
+
+</section>
+
+<!-- CTA -->
+<!-- Footer -->
+<footer id="footer">
+    <ul class="icons">
+        <li><a href="#" class="icon fa-twitter"><span class="label">Twitter</span></a></li>
+        <li><a href="#" class="icon fa-facebook"><span class="label">Facebook</span></a></li>
+        <li><a href="#" class="icon fa-instagram"><span class="label">Instagram</span></a></li>
+        <li><a href="#" class="icon fa-github"><span class="label">Github</span></a></li>
+        <li><a href="#" class="icon fa-dribbble"><span class="label">Dribbble</span></a></li>
+        <li><a href="#" class="icon fa-google-plus"><span class="label">Google+</span></a></li>
+    </ul>
+    <ul class="copyright">
+        <li>&copy; Tsinghua University. All rights reserved.</li>
+        <a href="./contact"> Contact Us</a>
+    </ul>
+</footer>
+
+</body>
 </html>
