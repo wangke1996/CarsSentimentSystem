@@ -25,7 +25,7 @@ function reviewAnalysis(batchResult, path = 'static/kb_json/汽车') {
             addText(abstract, "堪称完美", "level1");
         else if (posPercent > 0.8)
             addText(abstract, "令人满意", "level2");
-        else if (posPercent > 0.7)
+        else if (posPercent > 0.65)
             addText(abstract, "还不错", "level3");
         else if (posPercent > 0.5)
             addText(abstract, "一般般", "level4");
